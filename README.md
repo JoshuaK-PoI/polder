@@ -9,7 +9,7 @@ Programma's geschreven in __Polder__ lezen als gramaticaal correcte Nederlandse 
 Let op: Dit project is gemaakt voor de lol en voor educatieve doeleinden. Gebruik deze taal niet voor productie-code.
 
 ### 🇬🇧 
-__Polder__ is an interpreted [esoteric programming language](https://en.wikipedia.org/wiki/Esoteric_programming_language) inspired by (Tsoding - I made a Russian Programming Language)[https://www.youtube.com/watch?v=f4EOMbmIqqw]. 
+__Polder__ is an interpreted [esoteric programming language](https://en.wikipedia.org/wiki/Esoteric_programming_language) inspired by [Tsoding - I made a Russian Programming Language](https://www.youtube.com/watch?v=f4EOMbmIqqw). 
 
 Programs written in __Polder__ read like gramatically correct Dutch sentences, but are actually executable programs.
 
