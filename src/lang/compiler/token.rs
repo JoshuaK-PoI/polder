@@ -19,20 +19,40 @@ pub enum TokenType {
     Apostrophe,
     LowerApostrophe,
     FullStop,
+    Quote,
 
     // Keywords
     Druk,
     Af,
+    Laat,
+    Zijn,
+
+    ArticleIndefinite,
+    ArticleDefiniteH,
+    ArticleDefiniteD,
 
     // Literals
+    TrueLiteral,
+    FalseLiteral,
     StringLiteral,
     IntegerLiteral,
+    FloatLiteral,
+    CharLiteral,
+
     Identifier,
 }
 
 pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "Druk" => TokenType::Druk,
     "af" => TokenType::Af,
+    "Laat" => TokenType::Laat,
+    "zijn" => TokenType::Zijn,
+    "de" => TokenType::ArticleDefiniteD,
+    "het" => TokenType::ArticleDefiniteH,
+    "een" => TokenType::ArticleIndefinite,
+    "waar" => TokenType::TrueLiteral,
+    "onwaar" => TokenType::FalseLiteral
+
 };
 
 impl From<TokenType> for String {
@@ -52,16 +72,6 @@ pub(crate) struct Token {
     pub(crate) type_: TokenType,
     pub(crate) value: String,
     pub(crate) span: Span,
-}
-
-impl Token {
-    pub(crate) fn invalid() -> Token {
-        Token {
-            type_: TokenType::Unknown,
-            span: 0..0,
-            value: String::from("<invalid>"),
-        }
-    }
 }
 
 impl std::fmt::Display for Token {
@@ -107,11 +117,9 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
             Some(token) => Err(CompilerError {
                 error_code: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
                 error_message: format!("Expected one of: {:?}, got {}", expected, token),
-                span_message: String::from(""),
+                span_message: format!("Expected one of: {:?}, got {}", expected, token),
                 span: self.unshift().unwrap().span.clone(),
-                help: Some(String::from(
-                    "Expected one of: - TODO: List expected tokens",
-                )),
+                help: None,
                 info: None,
             }),
             None => Err(CompilerError {

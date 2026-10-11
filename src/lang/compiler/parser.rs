@@ -1,10 +1,12 @@
+use serde::Serialize;
+
 use crate::lang::compiler::{
     CompilerResult,
     statement::{SpannedStatement, Statement},
     token::TokenStream,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct AST {
     statements: Vec<SpannedStatement>,
 }

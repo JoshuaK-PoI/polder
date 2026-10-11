@@ -7,10 +7,6 @@ impl Printer {
         Printer { mode }
     }
 
-    fn set_mode(&mut self, mode: PrintMode) {
-        self.mode = mode;
-    }
-
     pub(crate) fn print(&self, text: String) -> String {
         if self.mode == PrintMode::Stdout {
             println!("{}", text.as_str());
@@ -23,5 +19,4 @@ impl Printer {
 #[derive(Eq, PartialEq)]
 pub(crate) enum PrintMode {
     Stdout,
-    ReturnVal,
 }

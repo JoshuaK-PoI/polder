@@ -1,6 +1,6 @@
 use crate::{
     lang::compiler::{
-        Compiler, CompilerError, ErrorCode,
+        Compiler, CompilerError,
         expression::ExpressionType,
         intrinsic::Intrinsics,
         statement::{IntrinsicStatement, SpannedStatement, StatementType},
@@ -27,6 +27,7 @@ impl Interpreter<'_> {
     pub(crate) fn run(&mut self) -> Result<String, String> {
         let mut compiler = Compiler::new(&self.input, &self.filename);
         let mut ast = compiler.compile().unwrap_or_else(|err| {
+            self.error_logger.report(&err);
             panic!("Error compiling file: {}", err.error_message);
         });
 
@@ -49,14 +50,7 @@ impl Interpreter<'_> {
     fn interpret_stmt(&self, stmt: SpannedStatement) -> Result<Option<String>, CompilerError> {
         match stmt.0 {
             StatementType::Intrinsic(intrinsic) => self.interpret_intrinsic(intrinsic),
-            StatementType::Unknown => Err(CompilerError {
-                error_code: ErrorCode::UnknownStatement,
-                error_message: format!("Unknown statement: {}", stmt.0),
-                span_message: format!("Unknown statement"),
-                help: None,
-                info: None,
-                span: stmt.1.clone(),
-            }),
+            StatementType::VariableDeclaration(declaratino) => todo!(),
         }
     }
 
@@ -68,6 +62,7 @@ impl Interpreter<'_> {
         match intrinsic.intrinsic {
             Intrinsics::Print => intrinsic.args.iter().for_each(|arg| match arg.expression {
                 ExpressionType::StringExpr(ref content) => output.push(content.text.clone()),
+                ExpressionType::Identifier(ref content) => todo!(),
             }),
         };
 

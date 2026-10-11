@@ -1,10 +1,9 @@
 use std::{iter::Peekable, str::Chars};
 
-use crate::lang::compiler::token::{KEYWORDS, Token, TokenStream, TokenType};
+use crate::lang::compiler::token::{KEYWORDS, Token, TokenType};
 
 pub(crate) struct Lexer<'a> {
     pub(crate) chars: Peekable<Chars<'a>>,
-    tokens: Vec<Token>,
     position: usize,
 }
 
@@ -29,13 +28,14 @@ impl<'a> Iterator for Lexer<'a> {
             Some('„') => self.build_string(start_position, '„'),
             Some('”') => self.build_string(start_position, '”'),
             Some('"') => self.build_string(start_position, '"'),
+            Some('\'') => self.build_char(start_position),
             Some('.') => Some(make_token!(
                 FullStop,
                 String::from("."),
                 start_position..self.position
             )),
             Some(c) if c.is_alphabetic() => self.build_identifier(start_position, c),
-            Some(c) if c.is_ascii_digit() => self.build_integer_literal(start_position, c),
+            Some(c) if c.is_ascii_digit() => self.build_number(start_position, c),
             Some(c) => Some(make_token!(
                 Unknown,
                 String::from(c),
@@ -50,7 +50,6 @@ impl<'a> Lexer<'a> {
     pub(crate) fn new() -> Lexer<'a> {
         Lexer {
             chars: "".chars().peekable(),
-            tokens: Vec::new(),
             position: 0,
         }
     }
@@ -86,14 +85,14 @@ impl<'a> Lexer<'a> {
         v
     }
 
-    pub(crate) fn get_tokens_peekable(&'a mut self) -> TokenStream<'a> {
-        self.tokens.iter_mut().peekable()
-    }
-
     fn build_string(&mut self, start_position: usize, start_char: char) -> Option<Token> {
         let mut str = self.continue_while(start_char, |c| *c != '"' && *c != '”');
-        let closing_apos = self.read_char().unwrap();
-        str.push(closing_apos);
+        let closing_apos = self.read_char();
+        if closing_apos.is_none() {
+            panic!("Expected closing apostrophe before end of file");
+        }
+
+        str.push(closing_apos.unwrap());
         let text = str.into_iter().collect::<String>();
         Some(make_token!(
             StringLiteral,
@@ -120,12 +119,48 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn build_integer_literal(&mut self, start_position: usize, c: char) -> Option<Token> {
-        let str = self.continue_while(c, |c| c.is_ascii_digit());
+    fn build_number(&mut self, start_position: usize, c: char) -> Option<Token> {
+        let str = self.continue_while(c, |c| c.is_ascii_digit() || c == &',');
         let value = str.into_iter().collect::<String>();
+        let commas = value.chars().filter(|c| c == &',').count();
+        if commas > 1 {
+            // @TODO Support error handling in lexer
+            panic!("Found more than one comma in number allocation")
+        }
+        if commas == 1 {
+            Some(make_token!(
+                FloatLiteral,
+                value,
+                start_position..self.position
+            ))
+        } else {
+            Some(make_token!(
+                IntegerLiteral,
+                value,
+                start_position..self.position
+            ))
+        }
+    }
+
+    fn build_char(&mut self, start_position: usize) -> Option<Token> {
+        let char = self.read_char();
+        if char.is_none() {
+            panic!("Expected a character after single quote");
+        }
+
+        let end_quote = self.read_char();
+        if end_quote.is_none() {
+            panic!("Expected an end quote after character but got nothing")
+        } else if end_quote.unwrap() != '\'' {
+            panic!(
+                "Expected an end quote after a single character, but got '{}'",
+                end_quote.unwrap()
+            )
+        }
+
         Some(make_token!(
-            IntegerLiteral,
-            value,
+            CharLiteral,
+            char.unwrap().to_string(),
             start_position..self.position
         ))
     }

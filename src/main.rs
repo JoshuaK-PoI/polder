@@ -38,12 +38,7 @@ mod tests {
     use crate::{lang::interpreter::Interpreter, logger};
     use log;
     use log::debug;
-    use std::{
-        fs,
-        io::{self, Write},
-        path::Path,
-        sync::{Arc, Mutex},
-    };
+    use std::{fs, path::Path};
 
     #[test]
     fn should_open_file() {

@@ -14,11 +14,17 @@ pub(crate) struct Expression {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) enum ExpressionType {
     StringExpr(StringExpression),
+    Identifier(IdentifierExpresion),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct StringExpression {
     pub(crate) text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct IdentifierExpresion {
+    pub(crate) name: String,
 }
 
 impl Expression {
@@ -35,6 +41,16 @@ impl Expression {
                     let text = token.value.replace(&['„', '”', '"'], "");
                     Ok(Expression {
                         expression: ExpressionType::StringExpr(StringExpression { text }),
+                        span: token.span,
+                    })
+                }
+                TokenType::Identifier => {
+                    let token = tokens.unshift().unwrap().clone();
+
+                    Ok(Expression {
+                        expression: ExpressionType::Identifier(IdentifierExpresion {
+                            name: token.value,
+                        }),
                         span: token.span,
                     })
                 }

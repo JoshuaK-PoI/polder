@@ -5,14 +5,15 @@ use crate::lang::compiler::{
     expression::Expression,
     intrinsic::Intrinsics,
     token::{Span, TokenStream, TokenType},
+    types::{PolderType, parse_type},
     unshift::{Unshift, UnshiftExpect},
 };
 
 pub(crate) type SpannedStatement = (StatementType, Span);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) enum StatementType {
-    Unknown,
+    VariableDeclaration(VariableDeclarationStatement),
     Intrinsic(IntrinsicStatement),
 }
 
@@ -28,10 +29,7 @@ impl std::fmt::Display for StatementType {
     }
 }
 
-pub(crate) struct Statement {
-    pub(crate) statement: StatementType,
-    pub(crate) span: Span,
-}
+pub(crate) struct Statement {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct IntrinsicStatement {
@@ -39,13 +37,21 @@ pub(crate) struct IntrinsicStatement {
     pub(crate) args: Vec<Expression>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct VariableDeclarationStatement {
+    pub(crate) identifier: String,
+    pub(crate) variable_type: Option<PolderType>,
+    pub(crate) value_literal: Option<String>,
+}
+
 impl Statement {
     pub(crate) fn parse(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
         if let Some(token) = tokens.peek() {
             let stmt = match token.type_ {
                 TokenType::Druk => Statement::intrinsic(Intrinsics::Print, tokens),
+                TokenType::Laat => Statement::variable_declaration(tokens),
                 _ => todo!("Statement::parse < {} >", token.type_),
-            };
+            }?;
 
             let fullstop = tokens.unshift_expect(TokenType::FullStop);
             if fullstop.is_err() {
@@ -58,7 +64,7 @@ impl Statement {
                     info: None,
                 })
             } else {
-                stmt
+                Ok(stmt)
             }
         } else {
             Err(CompilerError {
@@ -70,6 +76,36 @@ impl Statement {
                 info: None,
             })
         }
+    }
+
+    pub fn variable_declaration(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+        let start = tokens.unshift_expect(TokenType::Laat)?.clone();
+        let identifier = tokens.unshift_expect(TokenType::Identifier)?.clone();
+        let type_ = parse_type(tokens)?;
+
+        // @TODO: Const assignment
+        // @TODO: Handling of variables without a value
+        let value = tokens
+            .unshift_expect_any(&[
+                TokenType::StringLiteral,
+                TokenType::FloatLiteral,
+                TokenType::IntegerLiteral,
+                TokenType::TrueLiteral,
+                TokenType::FalseLiteral,
+                TokenType::CharLiteral,
+            ])?
+            .clone();
+
+        let end = tokens.unshift_expect(TokenType::Zijn)?.clone();
+
+        Ok((
+            StatementType::VariableDeclaration(VariableDeclarationStatement {
+                identifier: identifier.value,
+                variable_type: type_,
+                value_literal: Some(value.value),
+            }),
+            start.span.start..end.span.end,
+        ))
     }
 
     pub fn intrinsic(

@@ -4,6 +4,7 @@ mod lexer;
 pub(crate) mod parser;
 pub(crate) mod statement;
 mod token;
+pub(crate) mod types;
 mod unshift;
 
 use std::ops::Range;
@@ -36,7 +37,8 @@ pub(crate) enum ErrorCode {
     UnshiftedUnexpectedToken,
     InvalidExpression,
     StatementNotTerminated,
-    UnknownStatement,
+    InvalidTypeDeclaration,
+    WrongArticleForType,
 }
 
 impl From<ErrorCode> for String {
@@ -52,7 +54,6 @@ impl std::fmt::Display for ErrorCode {
 }
 pub(crate) struct Compiler<'a> {
     pub(crate) input: &'a str,
-    pub(crate) filename: &'a str,
     lexer: lexer::Lexer<'a>,
     error_logger: ErrorLogger<'a>,
 }
@@ -62,7 +63,6 @@ impl<'a> Compiler<'a> {
         let error_logger = ErrorLogger::new(input, filename);
         Compiler {
             input,
-            filename,
             lexer: lexer::Lexer::new(),
             error_logger,
         }
@@ -101,7 +101,7 @@ impl<'a> Compiler<'a> {
 
         let ast = Parser::parse(&mut tokens.iter_mut().peekable())?;
 
-        trace!("{:?}", ast);
+        trace!("{}", serde_json::to_string_pretty(&ast).unwrap());
 
         Ok(ast)
     }
