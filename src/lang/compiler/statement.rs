@@ -17,15 +17,15 @@ pub(crate) enum StatementType {
     Intrinsic(IntrinsicStatement),
 }
 
-impl From<StatementType> for String {
-    fn from(value: StatementType) -> Self {
+impl From<&StatementType> for String {
+    fn from(value: &StatementType) -> Self {
         format!("{:?}", value)
     }
 }
 
 impl std::fmt::Display for StatementType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", String::from(self.clone()))
+        write!(f, "{:?}", String::from(self))
     }
 }
 
@@ -79,24 +79,22 @@ impl Statement {
     }
 
     pub fn variable_declaration(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
-        let start = tokens.unshift_expect(TokenType::KWLaat)?.clone();
-        let identifier = tokens.unshift_expect(TokenType::Identifier)?.clone();
+        let start = tokens.unshift_expect(TokenType::KWLaat)?;
+        let identifier = tokens.unshift_expect(TokenType::Identifier)?;
         let type_ = parse_type(tokens)?;
 
         // @TODO: Const assignment
         // @TODO: Handling of variables without a value
-        let value = tokens
-            .unshift_expect_any(&[
-                TokenType::StringLiteral,
-                TokenType::FloatLiteral,
-                TokenType::IntegerLiteral,
-                TokenType::TrueLiteral,
-                TokenType::FalseLiteral,
-                TokenType::CharLiteral,
-            ])?
-            .clone();
+        let value = tokens.unshift_expect_any(&[
+            TokenType::StringLiteral,
+            TokenType::FloatLiteral,
+            TokenType::IntegerLiteral,
+            TokenType::TrueLiteral,
+            TokenType::FalseLiteral,
+            TokenType::CharLiteral,
+        ])?;
 
-        let end = tokens.unshift_expect(TokenType::KWZijn)?.clone();
+        let end = tokens.unshift_expect(TokenType::KWZijn)?;
 
         Ok((
             StatementType::VariableDeclaration(VariableDeclarationStatement {
@@ -112,9 +110,7 @@ impl Statement {
         intrinsic_name: Intrinsics,
         tokens: &mut TokenStream,
     ) -> CompilerResult<SpannedStatement> {
-        let start = tokens
-            .unshift_expect(intrinsic_name.expected_start_token())?
-            .clone();
+        let start = tokens.unshift_expect(intrinsic_name.expected_start_token())?;
         let mut arguments = Vec::new();
 
         while !tokens.next_matches(intrinsic_name.expected_end_token()) {
@@ -135,9 +131,7 @@ impl Statement {
             }
         }
 
-        let end = tokens
-            .unshift_expect(intrinsic_name.expected_end_token())?
-            .clone();
+        let end = tokens.unshift_expect(intrinsic_name.expected_end_token())?;
 
         Ok((
             StatementType::Intrinsic(IntrinsicStatement {

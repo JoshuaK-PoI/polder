@@ -36,22 +36,22 @@ impl Expression {
         if let Some(token) = tokens.peek() {
             match token.type_ {
                 TokenType::StringLiteral => {
-                    let token = tokens.unshift().unwrap().clone();
+                    let token = tokens.unshift().unwrap();
 
                     let text = token.value.replace(&['„', '”', '"'], "");
                     Ok(Expression {
                         expression: ExpressionType::StringExpr(StringExpression { text }),
-                        span: token.span,
+                        span: token.span.clone(),
                     })
                 }
                 TokenType::Identifier => {
-                    let token = tokens.unshift().unwrap().clone();
+                    let token = tokens.unshift().unwrap();
 
                     Ok(Expression {
                         expression: ExpressionType::Identifier(IdentifierExpresion {
-                            name: token.value,
+                            name: token.value.clone(),
                         }),
-                        span: token.span,
+                        span: token.span.clone(),
                     })
                 }
                 _ => Err(CompilerError {

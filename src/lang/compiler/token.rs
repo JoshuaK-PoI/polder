@@ -85,35 +85,31 @@ impl std::fmt::Display for Token {
 }
 
 impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
-    fn unshift_expect(&mut self, expected: TokenType) -> CompilerResult<&mut Token> {
+    fn unshift_expect(&mut self, expected: TokenType) -> CompilerResult<Token> {
         match self.peek() {
-            Some(token) if token.type_ == expected => Ok(self.unshift().unwrap()),
+            Some(token) if token.type_ == expected => Ok(self.unshift().unwrap().to_owned()),
             Some(token) => Err(CompilerError {
                 error_code: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
                 error_message: format!("Expected '{}', got {}", expected, token),
-                span_message: String::from(""),
+                span_message: format!("Expected '{}', got {}", expected, token),
                 span: self.unshift().unwrap().span.clone(),
-                help: Some(String::from(
-                    "Expected one of: - TODO: List expected tokens",
-                )),
+                help: None,
                 info: None,
             }),
             None => Err(CompilerError {
                 error_code: crate::lang::compiler::ErrorCode::NoTokensLeft,
                 error_message: format!("Expected token {}, got None", expected),
-                span_message: String::from(""),
+                span_message: format!("Expected token {}, got None", expected),
                 span: 0..0,
-                help: Some(String::from(
-                    "Expected one of: - TODO: List expected tokens",
-                )),
+                help: None,
                 info: None,
             }),
         }
     }
 
-    fn unshift_expect_any(&mut self, expected: &[TokenType]) -> CompilerResult<&mut Token> {
+    fn unshift_expect_any(&mut self, expected: &[TokenType]) -> CompilerResult<Token> {
         match self.peek() {
-            Some(token) if expected.contains(&token.type_) => Ok(self.unshift().unwrap()),
+            Some(token) if expected.contains(&token.type_) => Ok(self.unshift().unwrap().to_owned()),
             Some(token) => Err(CompilerError {
                 error_code: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
                 error_message: format!("Expected one of: {:?}, got {}", expected, token),
@@ -125,11 +121,9 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
             None => Err(CompilerError {
                 error_code: crate::lang::compiler::ErrorCode::NoTokensLeft,
                 error_message: format!("Expected token {:?}, got None", expected),
-                span_message: String::from(""),
+                span_message: format!("Expected one of: {:?}, got None", expected),
                 span: 0..0,
-                help: Some(String::from(
-                    "Expected one of: - TODO: List expected tokens",
-                )),
+                help: None,
                 info: None,
             }),
         }

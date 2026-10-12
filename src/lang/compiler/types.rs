@@ -29,26 +29,24 @@ impl From<String> for PolderType {
     }
 }
 
-impl From<PolderType> for String {
-    fn from(value: PolderType) -> Self {
+impl From<&PolderType> for String {
+    fn from(value: &PolderType) -> Self {
         format!("{:?}", value)
     }
 }
 
 impl std::fmt::Display for PolderType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", String::from(self.clone()))
+        write!(f, "{}", String::from(self))
     }
 }
 
 pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>, CompilerError> {
-    let article = tokens
-        .unshift_expect_any(&[
-            TokenType::KWArticleDefD,
-            TokenType::KWArticleDefH,
-            TokenType::KWArticleIndef,
-        ])?
-        .clone();
+    let article = tokens.unshift_expect_any(&[
+        TokenType::KWArticleDefD,
+        TokenType::KWArticleDefH,
+        TokenType::KWArticleIndef,
+    ])?;
 
     let typedecl = tokens.unshift_expect(TokenType::Identifier)?;
 
@@ -67,7 +65,7 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>,
                     info: None,
                 })
             } else {
-                Ok(Some(PolderType::from(typedecl.value.clone())))
+                Ok(Some(PolderType::from(typedecl.value)))
             }
         }
         "waarheid" | "tekst" | "letter" => {
@@ -84,7 +82,7 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>,
                     info: None,
                 })
             } else {
-                Ok(Some(PolderType::from(typedecl.value.clone())))
+                Ok(Some(PolderType::from(typedecl.value)))
             }
         }
         _ => Err(CompilerError {

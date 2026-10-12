@@ -16,19 +16,19 @@ pub(crate) struct Variable {
     is_const: bool,
 }
 
-impl From<Variable> for String {
-    fn from(value: Variable) -> Self {
+impl From<&Variable> for String {
+    fn from(value: &Variable) -> Self {
         format!(
             "<{}{}> {} {:<16.16}",
             if value.is_const { "(const) " } else { "" },
             if value.variable_type.is_some() {
-                value.variable_type.unwrap()
+                value.variable_type.as_ref().unwrap()
             } else {
-                PolderType::Uninitialized
+                &PolderType::Uninitialized
             },
             value.variable_ident,
             if value.variable_value.is_some() {
-                format!("\"{}\"", value.variable_value.unwrap())
+                format!("\"{}\"", value.variable_value.as_ref().unwrap())
             } else {
                 String::from("<uninitialized>")
             },
@@ -38,7 +38,7 @@ impl From<Variable> for String {
 
 impl std::fmt::Display for Variable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", String::from(self.clone()))
+        write!(f, "{}", String::from(self))
     }
 }
 
