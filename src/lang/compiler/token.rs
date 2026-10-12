@@ -22,14 +22,14 @@ pub enum TokenType {
     Quote,
 
     // Keywords
-    Druk,
-    Af,
-    Laat,
-    Zijn,
+    KWDruk,
+    KWAf,
+    KWLaat,
+    KWZijn,
 
-    ArticleIndefinite,
-    ArticleDefiniteH,
-    ArticleDefiniteD,
+    KWArticleIndef,
+    KWArticleDefH,
+    KWArticleDefD,
 
     // Literals
     TrueLiteral,
@@ -43,13 +43,13 @@ pub enum TokenType {
 }
 
 pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
-    "Druk" => TokenType::Druk,
-    "af" => TokenType::Af,
-    "Laat" => TokenType::Laat,
-    "zijn" => TokenType::Zijn,
-    "de" => TokenType::ArticleDefiniteD,
-    "het" => TokenType::ArticleDefiniteH,
-    "een" => TokenType::ArticleIndefinite,
+    "Druk" => TokenType::KWDruk,
+    "af" => TokenType::KWAf,
+    "Laat" => TokenType::KWLaat,
+    "zijn" => TokenType::KWZijn,
+    "de" => TokenType::KWArticleDefD,
+    "het" => TokenType::KWArticleDefH,
+    "een" => TokenType::KWArticleIndef,
     "waar" => TokenType::TrueLiteral,
     "onwaar" => TokenType::FalseLiteral
 
@@ -78,8 +78,8 @@ impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:16} '{}' @ {:#04}..{:#04} ",
-            self.type_, self.value, self.span.start, self.span.end
+            "{:<16.16} {:<16.16} @ {:#04}..{:#04} ",
+            format!("{}", self.type_), format!("'{}'", self.value), self.span.start, self.span.end
         )
     }
 }
@@ -135,18 +135,18 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
         }
     }
 
-    fn unshift_if(&mut self, token_type: TokenType) -> Option<&mut Token> {
-        match self.peek() {
-            Some(token) => {
-                if token.type_ == token_type {
-                    Some(self.unshift().unwrap())
-                } else {
-                    None
-                }
-            }
-            None => None,
-        }
-    }
+    // fn unshift_if(&mut self, token_type: TokenType) -> Option<&mut Token> {
+    //     match self.peek() {
+    //         Some(token) => {
+    //             if token.type_ == token_type {
+    //                 Some(self.unshift().unwrap())
+    //             } else {
+    //                 None
+    //             }
+    //         }
+    //         None => None,
+    //     }
+    // }
 
     fn next_matches(&mut self, token_type: TokenType) -> bool {
         match self.peek() {
@@ -155,10 +155,10 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
         }
     }
 
-    fn next_matches_any(&mut self, expected: &[TokenType]) -> bool {
-        match self.peek() {
-            Some(token) => expected.contains(&token.type_),
-            None => false,
-        }
-    }
+    // fn next_matches_any(&mut self, expected: &[TokenType]) -> bool {
+    //     match self.peek() {
+    //         Some(token) => expected.contains(&token.type_),
+    //         None => false,
+    //     }
+    // }
 }

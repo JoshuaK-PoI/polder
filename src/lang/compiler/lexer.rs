@@ -85,14 +85,14 @@ impl<'a> Lexer<'a> {
         v
     }
 
-    fn build_string(&mut self, start_position: usize, start_char: char) -> Option<Token> {
-        let mut str = self.continue_while(start_char, |c| *c != '"' && *c != '”');
+    fn build_string(&mut self, start_position: usize, _start_char: char) -> Option<Token> {
+        let start_char =self.read_char().unwrap();
+        let str = self.continue_while(start_char, |c| *c != '"' && *c != '”');
         let closing_apos = self.read_char();
         if closing_apos.is_none() {
             panic!("Expected closing apostrophe before end of file");
         }
 
-        str.push(closing_apos.unwrap());
         let text = str.into_iter().collect::<String>();
         Some(make_token!(
             StringLiteral,

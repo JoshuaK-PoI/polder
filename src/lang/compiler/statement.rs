@@ -48,8 +48,8 @@ impl Statement {
     pub(crate) fn parse(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
         if let Some(token) = tokens.peek() {
             let stmt = match token.type_ {
-                TokenType::Druk => Statement::intrinsic(Intrinsics::Print, tokens),
-                TokenType::Laat => Statement::variable_declaration(tokens),
+                TokenType::KWDruk => Statement::intrinsic(Intrinsics::Print, tokens),
+                TokenType::KWLaat => Statement::variable_declaration(tokens),
                 _ => todo!("Statement::parse < {} >", token.type_),
             }?;
 
@@ -79,7 +79,7 @@ impl Statement {
     }
 
     pub fn variable_declaration(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
-        let start = tokens.unshift_expect(TokenType::Laat)?.clone();
+        let start = tokens.unshift_expect(TokenType::KWLaat)?.clone();
         let identifier = tokens.unshift_expect(TokenType::Identifier)?.clone();
         let type_ = parse_type(tokens)?;
 
@@ -96,7 +96,7 @@ impl Statement {
             ])?
             .clone();
 
-        let end = tokens.unshift_expect(TokenType::Zijn)?.clone();
+        let end = tokens.unshift_expect(TokenType::KWZijn)?.clone();
 
         Ok((
             StatementType::VariableDeclaration(VariableDeclarationStatement {

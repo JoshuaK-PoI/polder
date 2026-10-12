@@ -10,13 +10,13 @@ pub(crate) enum Intrinsics {
 impl Intrinsics {
     pub(crate) fn expected_start_token(&self) -> TokenType {
         match self {
-            Intrinsics::Print => TokenType::Druk,
+            Intrinsics::Print => TokenType::KWDruk,
         }
     }
 
     pub(crate) fn expected_end_token(&self) -> TokenType {
         match self {
-            Intrinsics::Print => TokenType::Af,
+            Intrinsics::Print => TokenType::KWAf,
         }
     }
 }

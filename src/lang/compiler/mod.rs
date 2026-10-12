@@ -5,7 +5,7 @@ pub(crate) mod parser;
 pub(crate) mod statement;
 mod token;
 pub(crate) mod types;
-mod unshift;
+pub(crate) mod unshift;
 
 use std::ops::Range;
 
@@ -39,6 +39,9 @@ pub(crate) enum ErrorCode {
     StatementNotTerminated,
     InvalidTypeDeclaration,
     WrongArticleForType,
+    ParseError,
+    VariableAlreadyDefined,
+    UndefinedVariable,
 }
 
 impl From<ErrorCode> for String {
@@ -90,19 +93,22 @@ impl<'a> Compiler<'a> {
                 })
                 .collect();
             self.error_logger.report_many(&errors);
+            return Err(CompilerError {
+                error_code: ErrorCode::ParseError,
+                error_message: format!("Cannot parse program due to syntax errors"),
+                span: 0..0,
+                span_message: format!(""),
+                info: Some(format!("Fix syntax errors before continuing")),
+                help: None
+            });
         }
 
         if log::max_level() >= log::LevelFilter::Trace {
-            trace!("{:#04}..{:#04} {}", "Byte", "Rnge", "Token");
-
+            trace!("{:^16}|{:^16} @ {}", "Type", "Literal", "Position");
             trace!("{:-<1$}", "", 40);
             tokens.iter().for_each(|token| trace!("{}", token));
         }
 
-        let ast = Parser::parse(&mut tokens.iter_mut().peekable())?;
-
-        trace!("{}", serde_json::to_string_pretty(&ast).unwrap());
-
-        Ok(ast)
+        Parser::parse(&mut tokens.iter_mut().peekable())
     }
 }
