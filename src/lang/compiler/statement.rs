@@ -4,6 +4,7 @@ use crate::lang::compiler::{
     CompilerError, CompilerResult, ErrorCode,
     expression::Expression,
     intrinsic::Intrinsics,
+    numeric_literal::parse_numeric_literal,
     token::{Span, TokenStream, TokenType},
     types::{PolderType, parse_type},
     unshift::{Unshift, UnshiftExpect},
@@ -85,14 +86,31 @@ impl Statement {
 
         // @TODO: Const assignment
         // @TODO: Handling of variables without a value
-        let value = tokens.unshift_expect_any(&[
+        let mut value = tokens.unshift_expect_any(&[
             TokenType::StringLiteral,
             TokenType::FloatLiteral,
             TokenType::IntegerLiteral,
             TokenType::TrueLiteral,
             TokenType::FalseLiteral,
             TokenType::CharLiteral,
-        ])?;
+        ]);
+
+        if value.is_err() {
+            // We might be parsing a number literal
+            // Check we have the numeric type set
+            // Otherwise return the error immediately
+            if type_.is_none() || type_.as_ref().unwrap() != &PolderType::Integer {
+                return Err(value.err().unwrap());
+            }
+
+            let token = tokens.unshift_expect(TokenType::Identifier)?;
+            value = parse_numeric_literal(token.value, token.span);
+
+            // If we then still can't parse it, it is probably invalid
+            if value.is_err() {
+                return Err(value.err().unwrap());
+            }
+        }
 
         let end = tokens.unshift_expect(TokenType::KWZijn)?;
 
@@ -100,7 +118,7 @@ impl Statement {
             StatementType::VariableDeclaration(VariableDeclarationStatement {
                 identifier: identifier.value,
                 variable_type: type_,
-                value_literal: Some(value.value),
+                value_literal: Some(value.unwrap().value),
             }),
             start.span.start..end.span.end,
         ))

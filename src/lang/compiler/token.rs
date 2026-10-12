@@ -52,7 +52,6 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "een" => TokenType::KWArticleIndef,
     "waar" => TokenType::TrueLiteral,
     "onwaar" => TokenType::FalseLiteral
-
 };
 
 impl From<TokenType> for String {
@@ -114,7 +113,7 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
                 error_code: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
                 error_message: format!("Expected one of: {:?}, got {}", expected, token),
                 span_message: format!("Expected one of: {:?}, got {}", expected, token),
-                span: self.unshift().unwrap().span.clone(),
+                span: self.peek().unwrap().span.clone(),
                 help: None,
                 info: None,
             }),

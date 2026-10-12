@@ -6,6 +6,7 @@ pub(crate) mod statement;
 mod token;
 pub(crate) mod types;
 pub(crate) mod unshift;
+mod numeric_literal;
 
 use std::ops::Range;
 
@@ -20,6 +21,7 @@ use crate::lang::compiler::{
 
 pub(crate) type CompilerResult<T> = Result<T, CompilerError>;
 
+#[derive(Debug)]
 pub(crate) struct CompilerError {
     pub(crate) error_code: ErrorCode,
     pub(crate) error_message: String,
@@ -27,6 +29,20 @@ pub(crate) struct CompilerError {
     pub(crate) span: Range<usize>,
     pub(crate) help: Option<String>,
     pub(crate) info: Option<String>,
+}
+
+impl std::fmt::Display for CompilerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "
+            Compiler error:
+            - Error code: {}
+            - Message: {},
+            - Span message: {},
+            - Span: {:#?},
+            - Help: {:?},
+            - Info: {:?}
+        ", self.error_code, self.error_message, self.span_message, self.span, self.help, self.info)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -42,6 +58,7 @@ pub(crate) enum ErrorCode {
     ParseError,
     VariableAlreadyDefined,
     UndefinedVariable,
+    InvalidNumericLiteral,
 }
 
 impl From<ErrorCode> for String {
