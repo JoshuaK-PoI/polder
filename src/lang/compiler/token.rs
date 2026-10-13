@@ -26,10 +26,14 @@ pub enum TokenType {
     KWAf,
     KWLaat,
     KWZijn,
+    KWMaak,
+    KWVan,
 
     KWArticleIndef,
     KWArticleDefH,
     KWArticleDefD,
+
+    KWConst,
 
     // Literals
     TrueLiteral,
@@ -42,16 +46,34 @@ pub enum TokenType {
     Identifier,
 }
 
+pub(crate) const ARTICLES: &[TokenType] = &[
+    TokenType::KWArticleIndef,
+    TokenType::KWArticleDefH,
+    TokenType::KWArticleDefD,
+];
+
+pub(crate) const LITERALS: &[TokenType] = &[
+    TokenType::StringLiteral,
+    TokenType::FloatLiteral,
+    TokenType::IntegerLiteral,
+    TokenType::TrueLiteral,
+    TokenType::FalseLiteral,
+    TokenType::CharLiteral,
+];
+
 pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "Druk" => TokenType::KWDruk,
     "af" => TokenType::KWAf,
     "Laat" => TokenType::KWLaat,
     "zijn" => TokenType::KWZijn,
+    "Maak" => TokenType::KWMaak,
+    "van" => TokenType::KWVan,
     "de" => TokenType::KWArticleDefD,
     "het" => TokenType::KWArticleDefH,
     "een" => TokenType::KWArticleIndef,
     "waar" => TokenType::TrueLiteral,
-    "onwaar" => TokenType::FalseLiteral
+    "onwaar" => TokenType::FalseLiteral,
+    "voorgoed" => TokenType::KWConst,
 };
 
 impl From<TokenType> for String {
@@ -78,7 +100,10 @@ impl std::fmt::Display for Token {
         write!(
             f,
             "{:<16.16} {:<16.16} @ {:#04}..{:#04} ",
-            format!("{}", self.type_), format!("'{}'", self.value), self.span.start, self.span.end
+            format!("{}", self.type_),
+            format!("'{}'", self.value),
+            self.span.start,
+            self.span.end
         )
     }
 }
@@ -108,7 +133,9 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
 
     fn unshift_expect_any(&mut self, expected: &[TokenType]) -> CompilerResult<Token> {
         match self.peek() {
-            Some(token) if expected.contains(&token.type_) => Ok(self.unshift().unwrap().to_owned()),
+            Some(token) if expected.contains(&token.type_) => {
+                Ok(self.unshift().unwrap().to_owned())
+            }
             Some(token) => Err(CompilerError {
                 error_code: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
                 error_message: format!("Expected one of: {:?}, got {}", expected, token),
@@ -128,18 +155,12 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
         }
     }
 
-    // fn unshift_if(&mut self, token_type: TokenType) -> Option<&mut Token> {
-    //     match self.peek() {
-    //         Some(token) => {
-    //             if token.type_ == token_type {
-    //                 Some(self.unshift().unwrap())
-    //             } else {
-    //                 None
-    //             }
-    //         }
-    //         None => None,
-    //     }
-    // }
+    fn unshift_if(&mut self, token_type: TokenType) -> Option<&mut Token> {
+        match self.peek() {
+            Some(token) if token.type_ == token_type => Some(self.unshift().unwrap()),
+            _ => None,
+        }
+    }
 
     fn next_matches(&mut self, token_type: TokenType) -> bool {
         match self.peek() {
@@ -148,10 +169,10 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
         }
     }
 
-    // fn next_matches_any(&mut self, expected: &[TokenType]) -> bool {
-    //     match self.peek() {
-    //         Some(token) => expected.contains(&token.type_),
-    //         None => false,
-    //     }
-    // }
+    fn next_matches_any(&mut self, expected: &[TokenType]) -> bool {
+        match self.peek() {
+            Some(token) => expected.contains(&token.type_),
+            None => false,
+        }
+    }
 }

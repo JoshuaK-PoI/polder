@@ -59,6 +59,10 @@ pub(crate) enum ErrorCode {
     VariableAlreadyDefined,
     UndefinedVariable,
     InvalidNumericLiteral,
+    NoArgumentsProvided,
+    CannotInferVariableType,
+    IndefiniteCannotHaveValue,
+    AssignUndefinedVariable,
 }
 
 impl From<ErrorCode> for String {

@@ -1,7 +1,9 @@
 use std::ops::Range;
 
 use crate::lang::compiler::{
-    CompilerError, ErrorCode, statement::VariableDeclarationStatement, types::PolderType,
+    CompilerError, ErrorCode,
+    statement::{VariableAssignmentStatement, VariableDeclarationStatement},
+    types::PolderType,
 };
 
 pub(crate) struct Store {
@@ -60,6 +62,37 @@ impl Store {
         Ok(())
     }
 
+    pub(crate) fn update(
+        &mut self,
+        assignment: &VariableAssignmentStatement,
+        range: &Range<usize>,
+    ) -> Result<(), CompilerError> {
+        match self
+            .variables
+            .iter_mut()
+            .find(|v| v.variable_ident == assignment.identifier)
+        {
+            Some(v) => {
+                v.variable_value = Some(assignment.value_literal.clone());
+                Ok(())
+            }
+            None => Err(CompilerError {
+                error_code: ErrorCode::AssignUndefinedVariable,
+                error_message: format!(
+                    "Cannot assign to {}: variable is not defined",
+                    assignment.identifier
+                ),
+                span_message: format!("{} has not been defined yet.", assignment.identifier),
+                span: range.clone(),
+                help: Some(format!(
+                    "Define the variable: 'Laat {} <een waarde> zijn.'",
+                    assignment.identifier
+                )),
+                info: None,
+            }),
+        }
+    }
+
     fn check_variable_not_already_defined(
         &self,
         variable: &Variable,
@@ -100,7 +133,7 @@ impl From<&VariableDeclarationStatement> for Variable {
             variable_type: declaration.variable_type.clone(),
             variable_ident: declaration.identifier.clone(),
             variable_value: declaration.value_literal.clone(),
-            is_const: false,
+            is_const: declaration.is_const,
         }
     }
 }

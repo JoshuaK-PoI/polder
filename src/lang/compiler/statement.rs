@@ -5,7 +5,7 @@ use crate::lang::compiler::{
     expression::Expression,
     intrinsic::Intrinsics,
     numeric_literal::parse_numeric_literal,
-    token::{Span, TokenStream, TokenType},
+    token::{LITERALS, Span, TokenStream, TokenType},
     types::{PolderType, parse_type},
     unshift::{Unshift, UnshiftExpect},
 };
@@ -15,6 +15,7 @@ pub(crate) type SpannedStatement = (StatementType, Span);
 #[derive(Debug, Clone, Serialize)]
 pub(crate) enum StatementType {
     VariableDeclaration(VariableDeclarationStatement),
+    VariableAssignment(VariableAssignmentStatement),
     Intrinsic(IntrinsicStatement),
 }
 
@@ -43,6 +44,13 @@ pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: String,
     pub(crate) variable_type: Option<PolderType>,
     pub(crate) value_literal: Option<String>,
+    pub(crate) is_const: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct VariableAssignmentStatement {
+    pub(crate) identifier: String,
+    pub(crate) value_literal: String,
 }
 
 impl Statement {
@@ -50,6 +58,7 @@ impl Statement {
         if let Some(token) = tokens.peek() {
             let stmt = match token.type_ {
                 TokenType::KWDruk => Statement::intrinsic(Intrinsics::Print, tokens),
+                TokenType::KWMaak => Statement::variable_assignment(tokens),
                 TokenType::KWLaat => Statement::variable_declaration(tokens),
                 _ => todo!("Statement::parse < {} >", token.type_),
             }?;
@@ -79,27 +88,71 @@ impl Statement {
         }
     }
 
+    pub fn variable_assignment(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+        let start = tokens.unshift_expect(TokenType::KWMaak)?;
+        tokens.unshift_expect(TokenType::KWVan)?;
+        let identifier = tokens.unshift_expect(TokenType::Identifier)?;
+        let value = tokens.unshift_expect_any(LITERALS)?;
+        Ok((
+            StatementType::VariableAssignment(VariableAssignmentStatement {
+                identifier: identifier.value,
+                value_literal: value.value,
+            }),
+            start.span.start..value.span.end,
+        ))
+    }
+
     pub fn variable_declaration(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
         let start = tokens.unshift_expect(TokenType::KWLaat)?;
         let identifier = tokens.unshift_expect(TokenType::Identifier)?;
+        let is_const = tokens.unshift_if(TokenType::KWConst).is_some();
+        let is_indefinite_article = tokens.next_matches(TokenType::KWArticleIndef);
         let type_ = parse_type(tokens)?;
 
-        // @TODO: Const assignment
-        // @TODO: Handling of variables without a value
-        let mut value = tokens.unshift_expect_any(&[
-            TokenType::StringLiteral,
-            TokenType::FloatLiteral,
-            TokenType::IntegerLiteral,
-            TokenType::TrueLiteral,
-            TokenType::FalseLiteral,
-            TokenType::CharLiteral,
-        ]);
+        if is_indefinite_article {
+            if !tokens.next_matches(TokenType::KWZijn) {
+                let token = tokens.unshift();
+                return Err(CompilerError {
+                    error_code: ErrorCode::IndefiniteCannotHaveValue,
+                    error_message: format!("Indefinite article cannot have a value."),
+                    span_message: format!(
+                        "Expected {}, got {}",
+                        TokenType::KWZijn,
+                        if token.is_some() {
+                            token.as_ref().unwrap().value.clone()
+                        } else {
+                            "nothing".to_string()
+                        }
+                    ),
+                    span: if token.is_some() {
+                        token.unwrap().span.clone()
+                    } else {
+                        0..0
+                    },
+                    help: None,
+                    info: None,
+                });
+            }
+
+            let end = tokens.unshift_expect(TokenType::KWZijn)?;
+            return Ok((
+                StatementType::VariableDeclaration(VariableDeclarationStatement {
+                    identifier: identifier.value,
+                    variable_type: Some(type_),
+                    value_literal: None,
+                    is_const,
+                }),
+                start.span.start..end.span.end,
+            ));
+        }
+
+        let mut value = tokens.unshift_expect_any(LITERALS);
 
         if value.is_err() {
             // We might be parsing a number literal
             // Check we have the numeric type set
             // Otherwise return the error immediately
-            if type_.is_none() || type_.as_ref().unwrap() != &PolderType::Integer {
+            if ![PolderType::Integer, PolderType::MaybeInteger].contains(&type_) {
                 return Err(value.err().unwrap());
             }
 
@@ -117,8 +170,9 @@ impl Statement {
         Ok((
             StatementType::VariableDeclaration(VariableDeclarationStatement {
                 identifier: identifier.value,
-                variable_type: type_,
+                variable_type: Some(type_),
                 value_literal: Some(value.unwrap().value),
+                is_const,
             }),
             start.span.start..end.span.end,
         ))

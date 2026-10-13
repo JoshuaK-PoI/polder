@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::lang::compiler::{
     CompilerError, ErrorCode,
-    token::{TokenStream, TokenType},
+    token::{ARTICLES, Token, TokenStream, TokenType},
     unshift::UnshiftExpect,
 };
 
@@ -12,6 +12,7 @@ pub(crate) enum PolderType {
     Boolean,
     String,
     Integer,
+    MaybeInteger,
     Float,
     Char,
 }
@@ -41,7 +42,11 @@ impl std::fmt::Display for PolderType {
     }
 }
 
-pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>, CompilerError> {
+pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, CompilerError> {
+    if !tokens.next_matches_any(ARTICLES) {
+        return PolderType::infer(tokens.peek().unwrap());
+    }
+
     let article = tokens.unshift_expect_any(&[
         TokenType::KWArticleDefD,
         TokenType::KWArticleDefH,
@@ -52,7 +57,7 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>,
 
     match typedecl.value.as_str() {
         "getal" | "kommagetal" => {
-            if article.type_ != TokenType::KWArticleDefH {
+            if ![TokenType::KWArticleDefH, TokenType::KWArticleIndef].contains(&article.type_) {
                 Err(CompilerError {
                     error_code: ErrorCode::WrongArticleForType,
                     error_message: format!("Lekker genederlandst"),
@@ -65,11 +70,11 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>,
                     info: None,
                 })
             } else {
-                Ok(Some(PolderType::from(typedecl.value)))
+                Ok(PolderType::from(typedecl.value))
             }
         }
         "waarheid" | "tekst" | "letter" => {
-            if article.type_ != TokenType::KWArticleDefD {
+            if ![TokenType::KWArticleDefD, TokenType::KWArticleIndef].contains(&article.type_) {
                 Err(CompilerError {
                     error_code: ErrorCode::WrongArticleForType,
                     error_message: format!("Lekker genederlandst"),
@@ -82,7 +87,7 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>,
                     info: None,
                 })
             } else {
-                Ok(Some(PolderType::from(typedecl.value)))
+                Ok(PolderType::from(typedecl.value))
             }
         }
         _ => Err(CompilerError {
@@ -102,5 +107,27 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<Option<PolderType>,
             )),
             info: None,
         }),
+    }
+}
+
+impl PolderType {
+    pub(crate) fn infer(token: &Token) -> Result<Self, CompilerError> {
+        match token.type_ {
+            TokenType::TrueLiteral => Ok(PolderType::Boolean),
+            TokenType::FalseLiteral => Ok(PolderType::Boolean),
+            TokenType::StringLiteral => Ok(PolderType::String),
+            TokenType::IntegerLiteral => Ok(PolderType::Integer),
+            TokenType::FloatLiteral => Ok(PolderType::Float),
+            TokenType::CharLiteral => Ok(PolderType::Char),
+            TokenType::Identifier => Ok(PolderType::MaybeInteger),
+            _ => Err(CompilerError {
+                error_code: ErrorCode::CannotInferVariableType,
+                error_message: format!("Cannot infer variable type from {}", token.type_),
+                span_message: format!("'{}' has no associated variable type", token.value),
+                span: token.span.clone(),
+                help: None,
+                info: None,
+            }),
+        }
     }
 }

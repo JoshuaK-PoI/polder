@@ -7,17 +7,11 @@ mod store;
 use crate::{
     lang::{
         compiler::{
-            Compiler, CompilerError, ErrorCode,
-            expression::ExpressionType,
-            intrinsic::Intrinsics,
-            statement::{
-                IntrinsicStatement, SpannedStatement, StatementType, VariableDeclarationStatement,
-            },
-            unshift::Unshift,
-        },
-        program_options::ProgramOptions,
-    },
-    logger::ErrorLogger,
+            Compiler, CompilerError, ErrorCode, expression::ExpressionType, intrinsic::Intrinsics, statement::{
+                IntrinsicStatement, SpannedStatement, StatementType, VariableAssignmentStatement, VariableDeclarationStatement,
+            }, unshift::Unshift,
+        }, program_options::ProgramOptions,
+    }, logger::ErrorLogger,
 };
 use store::Store;
 
@@ -86,10 +80,14 @@ impl Interpreter<'_> {
     fn interpret_stmt(&mut self, stmt: &SpannedStatement) -> Result<Option<String>, CompilerError> {
         trace!("[interpreter] Interpreting statement {}...", stmt.0);
         match stmt.0 {
-            StatementType::Intrinsic(ref intrinsic) => self.interpret_intrinsic(intrinsic, &stmt.1),
             StatementType::VariableDeclaration(ref declaration) => self
                 .interpret_variable_declaration(declaration, &stmt.1)
                 .map(|_| None),
+            StatementType::VariableAssignment(ref assignment) => {
+                self.interpret_variable_assignment(assignment, &stmt.1)
+                .map(|_| None)
+            }
+            StatementType::Intrinsic(ref intrinsic) => self.interpret_intrinsic(intrinsic, &stmt.1),
         }
     }
 
@@ -100,35 +98,52 @@ impl Interpreter<'_> {
     ) -> Result<Option<String>, CompilerError> {
         let mut output = Vec::<String>::new();
         match intrinsic.intrinsic {
-            Intrinsics::Print => {
-                for arg in intrinsic.args.iter() {
-                    match arg.expression {
-                        ExpressionType::StringExpr(ref content) => {
-                            output.push(content.text.clone());
-                        }
-                        ExpressionType::Identifier(ref content) => {
-                            let value = self.store.get_variable_by_name(&content.name);
-                            if value.is_none() {
-                                return Err(CompilerError {
-                                    error_code: ErrorCode::UndefinedVariable,
-                                    error_message: format!(
-                                        "Call to undefined variable {} ",
-                                        &content.name
-                                    ),
-                                    span_message: format!("{} is not defined", &content.name),
-                                    span: range.clone(),
-                                    help: None,
-                                    info: None,
-                                });
-                            }
-                            output.push(value.unwrap().get_value().clone().unwrap());
-                        }
-                    }
-                }
-            }
+            Intrinsics::Print => self.intrinsic_print(intrinsic, range, &mut output)?,
         };
 
         Ok(Some(output.join("\n").to_string()))
+    }
+
+    fn intrinsic_print(
+        &self,
+        intrinsic: &IntrinsicStatement,
+        range: &Range<usize>,
+        output: &mut Vec<String>,
+    ) -> Result<(), CompilerError> {
+        if intrinsic.args.is_empty() {
+            Err(CompilerError {
+                error_code: ErrorCode::NoArgumentsProvided,
+                error_message: format!("No arguments provided for print statement"),
+                span_message: format!("Expected something to print, got nothing"),
+                span: range.clone(),
+                help: None,
+                info: None,
+            })
+        } else {
+            for arg in intrinsic.args.iter() {
+                match arg.expression {
+                    ExpressionType::StringExpr(ref content) => output.push(content.text.clone()),
+                    ExpressionType::Identifier(ref content) => {
+                        let value = self.store.get_variable_by_name(&content.name);
+                        if value.is_none() {
+                            return Err(CompilerError {
+                                error_code: ErrorCode::UndefinedVariable,
+                                error_message: format!(
+                                    "Call to undefined variable {} ",
+                                    &content.name
+                                ),
+                                span_message: format!("{} is not defined", &content.name),
+                                span: range.clone(),
+                                help: None,
+                                info: None,
+                            });
+                        }
+                        output.push(value.unwrap().get_value().clone().unwrap());
+                    }
+                }
+            }
+            Ok(())
+        }
     }
 
     fn interpret_variable_declaration(
@@ -137,6 +152,15 @@ impl Interpreter<'_> {
         range: &Range<usize>,
     ) -> Result<(), CompilerError> {
         self.store.declare(declaration.into(), range)?;
+        Ok(())
+    }
+
+    fn interpret_variable_assignment(
+        &mut self,
+        assignment: &VariableAssignmentStatement,
+        range: &Range<usize>,
+    ) -> Result<(), CompilerError> {
+        self.store.update(assignment, range)?;
         Ok(())
     }
 }
