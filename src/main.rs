@@ -1,12 +1,15 @@
+use std::io::{BufWriter, stdin, stdout};
+
 use clap::Parser;
 
-use crate::lang::{
-    interpreter::Interpreter,
-    printer::{PrintMode, Printer},
-    program_options::ProgramOptions,
+use crate::{
+    io::Io,
+    lang::{interpreter::Interpreter, program_options::ProgramOptions},
+    logger::ErrorLogger,
 };
 
 mod args;
+mod io;
 mod lang;
 mod logger;
 
@@ -26,20 +29,24 @@ fn main() {
         print_ast: args.print_ast,
     };
 
+    let mut input = stdin().lock();
+    let mut output = BufWriter::new(stdout().lock());
+
+    let mut io = Io::new(&mut input, &mut output);
+
     let input = std::fs::read_to_string(&args.input).unwrap_or_else(|err| {
         panic!("Error reading file: {} ", err);
     });
 
-    let output = Interpreter::new(&input, &args.input, &program_options)
-        .run()
-        .unwrap_or_else(|err| panic!("Error interpreting: {}", err));
-
-    Printer::init(PrintMode::Stdout).print(output);
+    Interpreter::new(&input, &args.input, &program_options)
+        .run(&mut io)
+        .unwrap_or_else(|err| ErrorLogger::new(&input, &args.input).report(&err));
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
+        io::Io,
         lang::{interpreter::Interpreter, program_options::ProgramOptions},
         logger,
     };
@@ -69,18 +76,27 @@ mod tests {
 
             println!("Testing file: {}", file_name);
             println!("{:-<1$}", "", 40);
-            let input = fs::read_to_string(&path).unwrap();
-            let input = input.as_str();
-            let mut interpreter = Interpreter::new(input, file_name, &program_options);
+            let input_str =
+                fs::read_to_string(path.with_extension("in")).unwrap_or_else(|_| String::new());
+            let mut input: &[u8] = input_str.as_bytes();
 
-            let output = interpreter.run().unwrap();
+            let mut output: Vec<u8> = Vec::new();
+            let mut io = Io::new(&mut input, &mut output);
+
+            Interpreter::new(
+                fs::read_to_string(&path).unwrap().as_str(),
+                file_name,
+                &program_options,
+            )
+            .run(&mut io)
+            .unwrap();
+            let result = String::from_utf8(output).unwrap();
             let expected_output = fs::read_to_string(path.with_extension("uit")).unwrap();
-            let expected_output = expected_output.trim().to_string();
 
-            println!("Output: {:?}", output);
+            println!("Output: {:?}", result);
             println!("Expect: {:?}", expected_output);
-            println!("Same? : {}", output == expected_output);
-            assert!(output == expected_output);
+            println!("Same? : {}", result == expected_output);
+            assert!(result == expected_output);
             println!("{}", "");
         }
     }

@@ -58,8 +58,10 @@ impl Statement {
         if let Some(token) = tokens.peek() {
             let stmt = match token.type_ {
                 TokenType::KWDruk => Statement::intrinsic(Intrinsics::Print, tokens),
+                TokenType::KWSchrijf => Statement::intrinsic(Intrinsics::Write, tokens),
                 TokenType::KWMaak => Statement::variable_assignment(tokens),
                 TokenType::KWLaat => Statement::variable_declaration(tokens),
+                TokenType::KWLees => Statement::intrinsic(Intrinsics::Readline, tokens),
                 _ => todo!("Statement::parse < {} >", token.type_),
             }?;
 

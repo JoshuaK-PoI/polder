@@ -67,26 +67,32 @@ impl Store {
         assignment: &VariableAssignmentStatement,
         range: &Range<usize>,
     ) -> Result<(), CompilerError> {
+        self.write(&assignment.identifier, &assignment.value_literal, range)
+    }
+
+    pub(crate) fn write(
+        &mut self,
+        identifier: &String,
+        value: &String,
+        range: &Range<usize>,
+    ) -> Result<(), CompilerError> {
         match self
             .variables
             .iter_mut()
-            .find(|v| v.variable_ident == assignment.identifier)
+            .find(|v| v.variable_ident == *identifier)
         {
             Some(v) => {
-                v.variable_value = Some(assignment.value_literal.clone());
+                v.variable_value = Some(value.clone());
                 Ok(())
             }
             None => Err(CompilerError {
                 error_code: ErrorCode::AssignUndefinedVariable,
-                error_message: format!(
-                    "Cannot assign to {}: variable is not defined",
-                    assignment.identifier
-                ),
-                span_message: format!("{} has not been defined yet.", assignment.identifier),
+                error_message: format!("Cannot assign to {}: variable is not defined", identifier),
+                span_message: format!("{} has not been defined yet.", identifier),
                 span: range.clone(),
                 help: Some(format!(
                     "Define the variable: 'Laat {} <een waarde> zijn.'",
-                    assignment.identifier
+                    identifier
                 )),
                 info: None,
             }),

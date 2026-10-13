@@ -63,6 +63,7 @@ pub(crate) enum ErrorCode {
     CannotInferVariableType,
     IndefiniteCannotHaveValue,
     AssignUndefinedVariable,
+    InternalCompilerError,
 }
 
 impl From<ErrorCode> for String {

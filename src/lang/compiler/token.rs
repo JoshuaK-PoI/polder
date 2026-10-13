@@ -28,6 +28,10 @@ pub enum TokenType {
     KWZijn,
     KWMaak,
     KWVan,
+    KWSchrijf,
+    KWOp,
+    KWLees,
+    KWIn,
 
     KWArticleIndef,
     KWArticleDefH,
@@ -64,6 +68,10 @@ pub(crate) const LITERALS: &[TokenType] = &[
 pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "Druk" => TokenType::KWDruk,
     "af" => TokenType::KWAf,
+    "Schrijf" => TokenType::KWSchrijf,
+    "op" => TokenType::KWOp,
+    "Lees" => TokenType::KWLees,
+    "in" => TokenType::KWIn,
     "Laat" => TokenType::KWLaat,
     "zijn" => TokenType::KWZijn,
     "Maak" => TokenType::KWMaak,
