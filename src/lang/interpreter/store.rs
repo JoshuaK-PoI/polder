@@ -1,9 +1,14 @@
 use std::ops::Range;
 
-use crate::lang::compiler::{
-    CompilerError, ErrorCode,
-    statement::{VariableAssignmentStatement, VariableDeclarationStatement},
-    types::PolderType,
+use crate::{
+    lang::{
+        compiler::{
+            statement::{VariableAssignmentStatement, VariableDeclarationStatement},
+            types::PolderType,
+        },
+        interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
+    },
+    runtime_error,
 };
 
 pub(crate) struct Store {
@@ -55,7 +60,7 @@ impl Store {
         &mut self,
         variable: Variable,
         range: &Range<usize>,
-    ) -> Result<(), CompilerError> {
+    ) -> Result<(), RuntimeError> {
         self.check_variable_not_already_defined(&variable, range)?;
         self.variables.push(variable);
 
@@ -66,7 +71,7 @@ impl Store {
         &mut self,
         assignment: &VariableAssignmentStatement,
         range: &Range<usize>,
-    ) -> Result<(), CompilerError> {
+    ) -> Result<(), RuntimeError> {
         self.write(&assignment.identifier, &assignment.value_literal, range)
     }
 
@@ -75,7 +80,7 @@ impl Store {
         identifier: &String,
         value: &String,
         range: &Range<usize>,
-    ) -> Result<(), CompilerError> {
+    ) -> Result<(), RuntimeError> {
         match self
             .variables
             .iter_mut()
@@ -85,17 +90,11 @@ impl Store {
                 v.variable_value = Some(value.clone());
                 Ok(())
             }
-            None => Err(CompilerError {
-                error_code: ErrorCode::AssignUndefinedVariable,
-                error_message: format!("Cannot assign to {}: variable is not defined", identifier),
-                span_message: format!("{} has not been defined yet.", identifier),
-                span: range.clone(),
-                help: Some(format!(
-                    "Define the variable: 'Laat {} <een waarde> zijn.'",
-                    identifier
-                )),
-                info: None,
-            }),
+            None => Err(runtime_error!(
+                range.clone(),
+                RuntimeErrorKind::UndefinedVariable,
+                identifier
+            )),
         }
     }
 
@@ -103,7 +102,7 @@ impl Store {
         &self,
         variable: &Variable,
         range: &Range<usize>,
-    ) -> Result<(), CompilerError> {
+    ) -> Result<(), RuntimeError> {
         if self
             .variables
             .iter()
@@ -112,17 +111,11 @@ impl Store {
             .len()
             > 0
         {
-            Err(CompilerError {
-                error_code: ErrorCode::VariableAlreadyDefined,
-                error_message: format!("Variable '{}' is already defined", variable.variable_ident),
-                span_message: format!(
-                    "Cannot redeclare '{}': Already exists",
-                    variable.variable_ident
-                ),
-                span: range.clone(),
-                help: None,
-                info: None,
-            })
+            Err(runtime_error!(
+                range.clone(),
+                RuntimeErrorKind::VariableAlreadyDefined,
+                variable.variable_ident
+            ))
         } else {
             Ok(())
         }

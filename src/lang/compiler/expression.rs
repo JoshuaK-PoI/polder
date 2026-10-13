@@ -55,27 +55,21 @@ impl Expression {
                     })
                 }
                 _ => Err(CompilerError {
-                    error_code: ErrorCode::InvalidExpression,
-                    error_message: format!(
+                    kind: ErrorCode::InvalidExpression,
+                    message: format!(
                         "Invalid expression: did not expect token of type {}",
                         token.type_
                     ),
                     span_message: String::from(""),
                     span: tokens.unshift().unwrap().span.clone(),
-                    help: None,
-                    info: None,
                 }),
             }
         } else {
             Err(CompilerError {
-                error_code: ErrorCode::InvalidExpression,
-                error_message: format!(
-                    "Invalid expression: did not get a token before end of file"
-                ),
+                kind: ErrorCode::InvalidExpression,
+                message: format!("Invalid expression: did not get a token before end of file"),
                 span_message: String::from(""),
                 span: 0..0,
-                help: None,
-                info: None,
             })
         }
     }

@@ -31,12 +31,10 @@ pub(crate) fn parse_numeric_literal(
     // something couldn't be matched and the number is likely invalid
     if tmp.len() > 0 {
         return Err(CompilerError {
-            error_code: ErrorCode::InvalidNumericLiteral,
-            error_message: format!("Invalid numeric literal {}", from),
+            kind: ErrorCode::InvalidNumericLiteral,
+            message: format!("Invalid numeric literal {}", from),
             span_message: format!("Invalid numeric literal"),
             span: span.clone(),
-            help: None,
-            info: Some(format!("Did not expect '{}' in {}", tmp, from)),
         });
     }
 
@@ -56,12 +54,10 @@ pub(crate) fn parse_numeric_literal(
                         // We have already multiplied the number by 1000 before,
                         // so it should not be possible to have "duizend" in the number again
                         return Err(CompilerError {
-                            error_code: ErrorCode::InvalidNumericLiteral,
-                            error_message: format!("Invalid numeric literal {}", from),
+                            kind: ErrorCode::InvalidNumericLiteral,
+                            message: format!("Invalid numeric literal {}", from),
                             span_message: format!("Invalid numeric literal"),
                             span: span.clone(),
-                            help: None,
-                            info: Some(format!("Did not expect '{}' in {}", next, from)),
                         });
                     }
                     if acc == 0 {
@@ -94,14 +90,12 @@ pub(crate) fn parse_numeric_literal(
             }
 
             c => Err(CompilerError {
-                error_code: ErrorCode::InvalidNumericLiteral,
-                error_message: format!("Invalid numeric literal {}", from),
+                kind: ErrorCode::InvalidNumericLiteral,
+                message: format!("Invalid numeric literal {}", from),
                 span_message: format!(
                     "Invalid numeric literal: Not registered as number token fragment"
                 ),
                 span: span.clone(),
-                help: None,
-                info: Some(format!("Did not expect '{}' in {}", c, from)),
             }),
         }?;
     }
@@ -195,21 +189,10 @@ fn check_next_part_correct_grammar(
         Ok(())
     } else {
         Err(CompilerError {
-            error_code: ErrorCode::InvalidNumericLiteral,
-            error_message: format!("Invalid numeric literal {}", cur),
+            kind: ErrorCode::InvalidNumericLiteral,
+            message: format!("Invalid numeric literal {}", cur),
             span_message: format!("Invalid numeric literal"),
             span: span.clone(),
-            help: None,
-            info: Some(format!(
-                "check_next_part_correct_grammar: Did not expect '{}' after '{}' in {}",
-                if next.is_some() {
-                    next.unwrap()
-                } else {
-                    "<empty>"
-                },
-                cur,
-                from
-            )),
         })
     }
 }
@@ -266,7 +249,7 @@ mod tests {
             let lit = parse_numeric_literal(String::from($literal), 0..0);
 
             if lit.is_err() {
-                eprintln!("{}", lit.as_ref().err().unwrap());
+                eprintln!("{}", format!("{:?}", lit.as_ref().err().unwrap()));
                 assert!(false);
             }
 

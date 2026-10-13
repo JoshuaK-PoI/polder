@@ -59,15 +59,10 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, Compile
         "getal" | "kommagetal" => {
             if ![TokenType::KWArticleDefH, TokenType::KWArticleIndef].contains(&article.type_) {
                 Err(CompilerError {
-                    error_code: ErrorCode::WrongArticleForType,
-                    error_message: format!("Lekker genederlandst"),
+                    kind: ErrorCode::WrongArticleForType,
+                    message: format!("Lekker genederlandst"),
                     span_message: format!("Dat is geen correct Nederlands"),
                     span: article.span.clone(),
-                    help: Some(format!(
-                        "Bedoelde je misschien {} {}?",
-                        "het", typedecl.value
-                    )),
-                    info: None,
                 })
             } else {
                 Ok(PolderType::from(typedecl.value))
@@ -76,36 +71,20 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, Compile
         "waarheid" | "tekst" | "letter" => {
             if ![TokenType::KWArticleDefD, TokenType::KWArticleIndef].contains(&article.type_) {
                 Err(CompilerError {
-                    error_code: ErrorCode::WrongArticleForType,
-                    error_message: format!("Lekker genederlandst"),
+                    kind: ErrorCode::WrongArticleForType,
+                    message: format!("Lekker genederlandst"),
                     span_message: format!("Dat is geen correct Nederlands"),
                     span: article.span.clone(),
-                    help: Some(format!(
-                        "Bedoelde je misschien {} {}?",
-                        "de", typedecl.value
-                    )),
-                    info: None,
                 })
             } else {
                 Ok(PolderType::from(typedecl.value))
             }
         }
         _ => Err(CompilerError {
-            error_code: ErrorCode::InvalidTypeDeclaration,
-            error_message: format!("Unknown type: {}", typedecl.value),
+            kind: ErrorCode::InvalidTypeDeclaration,
+            message: format!("Unknown type: {}", typedecl.value),
             span: typedecl.span.clone(),
             span_message: format!("{} is not a known type", typedecl.value),
-            help: Some(format!(
-                "Supported types are: {:?}",
-                &[
-                    "het getal",
-                    "het kommagetal",
-                    "de waarheid",
-                    "de tekst",
-                    "de letter",
-                ]
-            )),
-            info: None,
         }),
     }
 }
@@ -121,12 +100,10 @@ impl PolderType {
             TokenType::CharLiteral => Ok(PolderType::Char),
             TokenType::Identifier => Ok(PolderType::MaybeInteger),
             _ => Err(CompilerError {
-                error_code: ErrorCode::CannotInferVariableType,
-                error_message: format!("Cannot infer variable type from {}", token.type_),
+                kind: ErrorCode::CannotInferVariableType,
+                message: format!("Cannot infer variable type from {}", token.type_),
                 span_message: format!("'{}' has no associated variable type", token.value),
                 span: token.span.clone(),
-                help: None,
-                info: None,
             }),
         }
     }

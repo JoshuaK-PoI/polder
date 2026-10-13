@@ -121,20 +121,16 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
         match self.peek() {
             Some(token) if token.type_ == expected => Ok(self.unshift().unwrap().to_owned()),
             Some(token) => Err(CompilerError {
-                error_code: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
-                error_message: format!("Expected '{}', got {}", expected, token),
+                kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
+                message: format!("Expected '{}', got {}", expected, token),
                 span_message: format!("Expected '{}', got {}", expected, token),
                 span: self.unshift().unwrap().span.clone(),
-                help: None,
-                info: None,
             }),
             None => Err(CompilerError {
-                error_code: crate::lang::compiler::ErrorCode::NoTokensLeft,
-                error_message: format!("Expected token {}, got None", expected),
+                kind: crate::lang::compiler::ErrorCode::NoTokensLeft,
+                message: format!("Expected token {}, got None", expected),
                 span_message: format!("Expected token {}, got None", expected),
                 span: 0..0,
-                help: None,
-                info: None,
             }),
         }
     }
@@ -145,20 +141,16 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
                 Ok(self.unshift().unwrap().to_owned())
             }
             Some(token) => Err(CompilerError {
-                error_code: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
-                error_message: format!("Expected one of: {:?}, got {}", expected, token),
+                kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
+                message: format!("Expected one of: {:?}, got {}", expected, token),
                 span_message: format!("Expected one of: {:?}, got {}", expected, token),
                 span: self.peek().unwrap().span.clone(),
-                help: None,
-                info: None,
             }),
             None => Err(CompilerError {
-                error_code: crate::lang::compiler::ErrorCode::NoTokensLeft,
-                error_message: format!("Expected token {:?}, got None", expected),
+                kind: crate::lang::compiler::ErrorCode::NoTokensLeft,
+                message: format!("Expected token {:?}, got None", expected),
                 span_message: format!("Expected one of: {:?}, got None", expected),
                 span: 0..0,
-                help: None,
-                info: None,
             }),
         }
     }

@@ -1,4 +1,11 @@
-use crate::lang::compiler::CompilerError;
+use std::ops::Range;
+
+#[derive(Debug)]
+pub(crate) struct PolderError {
+    pub(crate) message: String,
+    pub(crate) span_message: String,
+    pub(crate) span: Range<usize>,
+}
 
 pub(crate) struct ErrorLogger<'a> {
     filename: &'a str,
@@ -10,30 +17,21 @@ impl<'a> ErrorLogger<'a> {
         ErrorLogger { input, filename }
     }
 
-    pub(crate) fn report<'b>(&'a self, error_detail: &'b CompilerError) -> () {
+    pub(crate) fn report<'b>(&'a self, error_detail: &'b PolderError) -> () {
         use ariadne::{ColorGenerator, Label, Report, ReportKind, Source};
         let mut colors = ColorGenerator::new();
         let color_1 = colors.next();
 
-        let mut report = Report::build(
-            ReportKind::Error,
+        let report = Report::build(
+            ReportKind::Custom("Doe normaal!", Color::Red),
             (self.filename, error_detail.span.clone()),
         )
-        .with_code(&error_detail.error_code)
-        .with_message(&error_detail.error_message)
+        .with_message(&error_detail.message)
         .with_label(
             Label::new((self.filename, error_detail.span.clone()))
                 .with_message(&error_detail.span_message)
                 .with_color(color_1),
         );
-
-        if let Some(help) = &error_detail.help {
-            report = report.with_help(help);
-        }
-
-        if let Some(info) = &error_detail.info {
-            report = report.with_note(info);
-        }
 
         report
             .finish()
@@ -41,11 +39,12 @@ impl<'a> ErrorLogger<'a> {
             .unwrap();
     }
 
-    pub(crate) fn report_many(&self, errors: &[CompilerError]) -> () {
+    pub(crate) fn report_many(&self, errors: &[PolderError]) -> () {
         errors.iter().for_each(|error| self.report(error));
     }
 }
 
+use ariadne::Color;
 use log::{LevelFilter, Metadata, Record};
 
 struct SimpleLogger;

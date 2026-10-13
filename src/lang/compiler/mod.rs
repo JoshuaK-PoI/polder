@@ -1,16 +1,16 @@
 pub(crate) mod expression;
 pub(crate) mod intrinsic;
 mod lexer;
+mod numeric_literal;
 pub(crate) mod parser;
 pub(crate) mod statement;
 mod token;
 pub(crate) mod types;
 pub(crate) mod unshift;
-mod numeric_literal;
 
 use std::ops::Range;
 
-use crate::logger::ErrorLogger;
+use crate::logger::{ErrorLogger, PolderError};
 use log::trace;
 use parser::AST;
 
@@ -19,31 +19,25 @@ use crate::lang::compiler::{
     token::{Token, TokenType},
 };
 
-pub(crate) type CompilerResult<T> = Result<T, CompilerError>;
-
 #[derive(Debug)]
 pub(crate) struct CompilerError {
-    pub(crate) error_code: ErrorCode,
-    pub(crate) error_message: String,
+    pub(crate) kind: ErrorCode,
+    pub(crate) message: String,
     pub(crate) span_message: String,
     pub(crate) span: Range<usize>,
-    pub(crate) help: Option<String>,
-    pub(crate) info: Option<String>,
 }
 
-impl std::fmt::Display for CompilerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "
-            Compiler error:
-            - Error code: {}
-            - Message: {},
-            - Span message: {},
-            - Span: {:#?},
-            - Help: {:?},
-            - Info: {:?}
-        ", self.error_code, self.error_message, self.span_message, self.span, self.help, self.info)
+impl From<CompilerError> for PolderError {
+    fn from(value: CompilerError) -> Self {
+        PolderError {
+            message: value.message,
+            span_message: value.span_message,
+            span: value.span,
+        }
     }
 }
+
+pub(crate) type CompilerResult<T> = Result<T, CompilerError>;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ErrorCode {
@@ -56,14 +50,9 @@ pub(crate) enum ErrorCode {
     InvalidTypeDeclaration,
     WrongArticleForType,
     ParseError,
-    VariableAlreadyDefined,
-    UndefinedVariable,
     InvalidNumericLiteral,
-    NoArgumentsProvided,
     CannotInferVariableType,
     IndefiniteCannotHaveValue,
-    AssignUndefinedVariable,
-    InternalCompilerError,
 }
 
 impl From<ErrorCode> for String {
@@ -103,25 +92,22 @@ impl<'a> Compiler<'a> {
             .collect();
 
         if unknown_tokens.len() > 0 {
-            let errors: Vec<CompilerError> = unknown_tokens
+            let errors: Vec<PolderError> = unknown_tokens
                 .iter()
                 .map(|token| CompilerError {
-                    error_code: ErrorCode::UnknownToken,
-                    error_message: format!("Unknown token: {:?}", token.type_),
+                    kind: ErrorCode::UnknownToken,
+                    message: format!("Unknown token: {:?}", token.type_),
                     span: (**token).span.clone(),
                     span_message: format!("This token is unknown to the compiler"),
-                    help: None,
-                    info: None,
                 })
+                .map(|e| e.into())
                 .collect();
             self.error_logger.report_many(&errors);
             return Err(CompilerError {
-                error_code: ErrorCode::ParseError,
-                error_message: format!("Cannot parse program due to syntax errors"),
+                kind: ErrorCode::ParseError,
+                message: format!("Cannot parse program due to syntax errors"),
                 span: 0..0,
                 span_message: format!(""),
-                info: Some(format!("Fix syntax errors before continuing")),
-                help: None
             });
         }
 

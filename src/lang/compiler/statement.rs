@@ -68,24 +68,20 @@ impl Statement {
             let fullstop = tokens.unshift_expect(TokenType::FullStop);
             if fullstop.is_err() {
                 Err(CompilerError {
-                    error_code: ErrorCode::StatementNotTerminated,
-                    error_message: format!("Expected end of statement"),
+                    kind: ErrorCode::StatementNotTerminated,
+                    message: format!("Expected end of statement"),
                     span_message: format!("Expected a '.' after this"),
                     span: fullstop.err().unwrap().span.clone(),
-                    help: None,
-                    info: None,
                 })
             } else {
                 Ok(stmt)
             }
         } else {
             Err(CompilerError {
-                error_code: ErrorCode::NoTokensLeft,
-                error_message: format!("Expected start of statement"),
+                kind: ErrorCode::NoTokensLeft,
+                message: format!("Expected start of statement"),
                 span_message: String::from(""),
                 span: 0..0,
-                help: None,
-                info: None,
             })
         }
     }
@@ -115,8 +111,8 @@ impl Statement {
             if !tokens.next_matches(TokenType::KWZijn) {
                 let token = tokens.unshift();
                 return Err(CompilerError {
-                    error_code: ErrorCode::IndefiniteCannotHaveValue,
-                    error_message: format!("Indefinite article cannot have a value."),
+                    kind: ErrorCode::IndefiniteCannotHaveValue,
+                    message: format!("Indefinite article cannot have a value."),
                     span_message: format!(
                         "Expected {}, got {}",
                         TokenType::KWZijn,
@@ -131,8 +127,6 @@ impl Statement {
                     } else {
                         0..0
                     },
-                    help: None,
-                    info: None,
                 });
             }
 
@@ -192,15 +186,13 @@ impl Statement {
 
             if !tokens.next_matches(intrinsic_name.expected_end_token()) {
                 return Err(CompilerError {
-                    error_code: ErrorCode::UnexpectedToken,
-                    error_message: format!("Did not expect token {}", tokens.peek().unwrap().type_),
-                    span_message: String::from(""),
-                    span: tokens.unshift().unwrap().span.clone(),
-                    help: Some(format!(
+                    kind: ErrorCode::UnexpectedToken,
+                    message: format!("Did not expect token {}", tokens.peek().unwrap().type_),
+                    span_message: format!(
                         "Expected the end of the statement: {}",
                         intrinsic_name.expected_end_token(),
-                    )),
-                    info: None,
+                    ),
+                    span: tokens.unshift().unwrap().span.clone(),
                 });
             }
         }

@@ -6,7 +6,21 @@ use crate::lang::compiler::token::TokenType;
 pub(crate) enum Intrinsics {
     Print,
     Write,
-    Readline
+    Readline,
+}
+
+impl std::fmt::Display for Intrinsics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Intrinsics::Print => "Druk ... af",
+                Intrinsics::Write => "Schrijf ... op",
+                Intrinsics::Readline => "Lees ... in",
+            }
+        )
+    }
 }
 
 impl Intrinsics {

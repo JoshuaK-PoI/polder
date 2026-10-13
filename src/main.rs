@@ -54,7 +54,7 @@ mod tests {
     use std::{fs, path::Path};
 
     #[test]
-    fn should_open_file() {
+    fn test_happy_path() {
         logger::init(log::LevelFilter::Off)
             .unwrap_or_else(|_| panic!("Logger initialization failed"));
         let program_options = ProgramOptions { print_ast: false };
@@ -92,6 +92,54 @@ mod tests {
             .unwrap();
             let result = String::from_utf8(output).unwrap();
             let expected_output = fs::read_to_string(path.with_extension("uit")).unwrap();
+
+            println!("Output: {:?}", result);
+            println!("Expect: {:?}", expected_output);
+            println!("Same? : {}", result == expected_output);
+            assert!(result == expected_output);
+            println!("{}", "");
+        }
+    }
+
+    #[test]
+    fn test_errors() {
+        logger::init(log::LevelFilter::Off)
+            .unwrap_or_else(|_| panic!("Logger initialization failed"));
+        let program_options = ProgramOptions { print_ast: false };
+
+        let test_dir = Path::new("tests/cases/variabelen/fouten");
+        let mut test_files = fs::read_dir(test_dir)
+            .unwrap()
+            .map(|f| f.unwrap())
+            .filter(|f| f.path().extension().unwrap().eq_ignore_ascii_case("pol"))
+            .collect::<Vec<_>>();
+
+        test_files.sort_by_key(|f| f.path());
+
+        assert!(&test_files.len() > &0, "No test files found");
+
+        for file in test_files {
+            let path = file.path();
+            let file_name = path.file_name().unwrap().to_str().unwrap();
+
+            println!("Testing file: {}", file_name);
+            println!("{:-<1$}", "", 40);
+            let input_str =
+                fs::read_to_string(path.with_extension("in")).unwrap_or_else(|_| String::new());
+            let mut input: &[u8] = input_str.as_bytes();
+
+            let mut output: Vec<u8> = Vec::new();
+            let mut io = Io::new(&mut input, &mut output);
+
+            Interpreter::new(
+                fs::read_to_string(&path).unwrap().as_str(),
+                file_name,
+                &program_options,
+            )
+            .run(&mut io)
+            .unwrap();
+            let result = String::from_utf8(output).unwrap();
+            let expected_output = fs::read_to_string(path.with_extension("fout")).unwrap();
 
             println!("Output: {:?}", result);
             println!("Expect: {:?}", expected_output);
