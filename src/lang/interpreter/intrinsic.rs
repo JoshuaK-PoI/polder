@@ -39,7 +39,7 @@ fn print(
             ExpressionType::StringExpr(ref content) => io.write(content.text.as_str())?,
             ExpressionType::Identifier(ref content) => match store.get(&content.name) {
                 Some(variable) => match variable.get_value() {
-                    Some(value) => Ok(io.write(value)?),
+                    Some(value) => Ok(io.write(&value.value)?),
                     None => Err(runtime_error!(
                         range.clone(),
                         RuntimeErrorKind::VariableHasNoValue,
@@ -89,6 +89,6 @@ fn readline(
             RuntimeErrorKind::NoInputGiven
         ))
     } else {
-        store.write(&identifier, &input.unwrap(), range)
+        store.write_unchecked(&identifier, &input.unwrap(), range)
     }
 }

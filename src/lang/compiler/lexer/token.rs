@@ -86,7 +86,34 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
 
 impl From<TokenType> for String {
     fn from(token: TokenType) -> String {
-        format!("{:?}", token)
+        format!("{}", match token {
+            TokenType::Unknown => "<onbekend>",
+            TokenType::Apostrophe => "”",
+            TokenType::LowerApostrophe => "„",
+            TokenType::FullStop => ".",
+            TokenType::Quote => "'",
+            TokenType::KWDruk => "Druk",
+            TokenType::KWAf => "af",
+            TokenType::KWLaat => "Laat",
+            TokenType::KWZijn => "zijn",
+            TokenType::KWMaak => "Maak",
+            TokenType::KWVan => "van",
+            TokenType::KWSchrijf => "Schrijf",
+            TokenType::KWOp => "op",
+            TokenType::KWLees => "Lees",
+            TokenType::KWIn => "in",
+            TokenType::KWArticleIndef => "een",
+            TokenType::KWArticleDefH => "het",
+            TokenType::KWArticleDefD => "de",
+            TokenType::KWConst => "voorgoed",
+            TokenType::TrueLiteral => "waar",
+            TokenType::FalseLiteral => "onwaar",
+            TokenType::StringLiteral => "tekst",
+            TokenType::IntegerLiteral => "getal",
+            TokenType::FloatLiteral => "kommagetal",
+            TokenType::CharLiteral => "karakter",
+            TokenType::Identifier => "indentificatie",
+        })
     }
 }
 

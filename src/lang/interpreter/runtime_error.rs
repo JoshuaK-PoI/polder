@@ -54,9 +54,11 @@ pub(crate) enum RuntimeErrorKind {
     UndefinedVariable,
     VariableAlreadyDefined,
     VariableHasNoValue,
+    VariableIsConst,
     MismatchedType,
     NoArgumentsProvided,
     NoInputGiven,
+    UnsupportedFunction,
     IOError,
 }
 
@@ -66,9 +68,11 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::UndefinedVariable => "bestaat niet".to_string(),
             RuntimeErrorKind::VariableAlreadyDefined => "bestaat al".to_string(),
             RuntimeErrorKind::VariableHasNoValue => "heeft nog geen waarde".to_string(),
+            RuntimeErrorKind::VariableIsConst => "kan niet opnieuw worden toegewezen".to_string(),
             RuntimeErrorKind::MismatchedType => "Verkeerd type".to_string(),
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
             RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
+            RuntimeErrorKind::UnsupportedFunction => "Nog niet geimplementeerd".to_string(),
             RuntimeErrorKind::IOError => "I/O Error".to_string(),
         }
     }

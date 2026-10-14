@@ -1,5 +1,7 @@
 use serde::Serialize;
 
+use crate::lang::compiler::lexer::token::Token;
+
 use super::super::{
     CompilerError, CompilerResult, ErrorCode,
     iter::unshift::{Unshift, UnshiftExpect},
@@ -46,14 +48,14 @@ pub(crate) struct IntrinsicStatement {
 pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: String,
     pub(crate) variable_type: PolderType,
-    pub(crate) value_literal: Option<String>,
+    pub(crate) value_literal: Option<Token>,
     pub(crate) is_const: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct VariableAssignmentStatement {
     pub(crate) identifier: String,
-    pub(crate) value_literal: String,
+    pub(crate) value: Token,
 }
 
 impl Statement {
@@ -94,12 +96,14 @@ impl Statement {
         tokens.unshift_expect(TokenType::KWVan)?;
         let identifier = tokens.unshift_expect(TokenType::Identifier)?;
         let value = tokens.unshift_expect_any(LITERALS)?;
+        let end = value.span.end;
+
         Ok((
             StatementType::VariableAssignment(VariableAssignmentStatement {
                 identifier: identifier.value,
-                value_literal: value.value,
+                value: value,
             }),
-            start.span.start..value.span.end,
+            start.span.start..end,
         ))
     }
 
@@ -170,7 +174,7 @@ impl Statement {
             StatementType::VariableDeclaration(VariableDeclarationStatement {
                 identifier: identifier.value,
                 variable_type: type_,
-                value_literal: Some(value.unwrap().value),
+                value_literal: Some(value.unwrap()),
                 is_const,
             }),
             start.span.start..end.span.end,

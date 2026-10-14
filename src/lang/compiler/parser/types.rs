@@ -31,7 +31,14 @@ impl From<String> for PolderType {
 
 impl From<&PolderType> for String {
     fn from(value: &PolderType) -> Self {
-        format!("{:?}", value)
+        format!("{}", match value {
+            PolderType::Boolean => "waarheid",
+            PolderType::String => "tekst",
+            PolderType::Integer => "getal",
+            PolderType::MaybeInteger => "getal",
+            PolderType::Float => "kommagetal",
+            PolderType::Char => "karakter",
+        })
     }
 }
 

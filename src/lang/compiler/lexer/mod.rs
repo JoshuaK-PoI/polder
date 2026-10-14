@@ -4,10 +4,6 @@ use std::{iter::Peekable, str::Chars};
 
 use token::{KEYWORDS, Token, TokenType};
 
-pub(crate) struct Lexer<'a> {
-    pub(crate) chars: Peekable<Chars<'a>>,
-    position: usize,
-}
 
 macro_rules! make_token {
     ($type_:ident, $value:expr, $span:expr) => {
@@ -17,6 +13,11 @@ macro_rules! make_token {
             span: $span,
         }
     };
+}
+
+pub(crate) struct Lexer<'a> {
+    pub(crate) chars: Peekable<Chars<'a>>,
+    position: usize,
 }
 
 impl<'a> Lexer<'a> {

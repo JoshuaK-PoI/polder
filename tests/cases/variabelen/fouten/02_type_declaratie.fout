@@ -1,1 +1,1 @@
-regel 1: Doe normaal: 3,14 is een kommagetal, geen getal.
+{"message":" Verkeerd type","span_message":"pi is een getal, geen kommagetal","span":{"start":18,"end":22}}

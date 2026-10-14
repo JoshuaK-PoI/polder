@@ -1,7 +1,7 @@
 pub(super) mod iter;
 pub(super) mod parser;
+pub(super) mod lexer;
 
-mod lexer;
 mod numeric_literal;
 
 use std::ops::Range;

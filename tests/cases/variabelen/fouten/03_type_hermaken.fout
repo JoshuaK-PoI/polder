@@ -1,1 +1,1 @@
-regel 2: Doe normaal: x is een getal, geen tekst.
+{"message":" Verkeerd type","span_message":"x is een getal, geen tekst","span":{"start":36,"end":43}}
