@@ -1,6 +1,8 @@
+pub(crate) mod token;
+
 use std::{iter::Peekable, str::Chars};
 
-use crate::lang::compiler::token::{KEYWORDS, Token, TokenType};
+use token::{KEYWORDS, Token, TokenType};
 
 pub(crate) struct Lexer<'a> {
     pub(crate) chars: Peekable<Chars<'a>>,
@@ -17,9 +19,25 @@ macro_rules! make_token {
     };
 }
 
-impl<'a> Iterator for Lexer<'a> {
-    type Item = Token;
-    fn next(&mut self) -> Option<Self::Item> {
+impl<'a> Lexer<'a> {
+    pub(crate) fn new(input: &'a str) -> Lexer<'a> {
+        let chars = input.chars().peekable();
+        Lexer {
+            chars,
+            position: 0,
+        }
+    }
+
+    pub(crate) fn lex(&mut self) -> Vec<Token> {
+        let mut tokens = Vec::new();
+        while let Some(token) = self.next() {
+            tokens.push(token);
+        }
+
+        tokens
+    }
+
+    fn next(&mut self) -> Option<Token> {
         self.skip_whitespace();
 
         let start_position = self.position;
@@ -42,22 +60,6 @@ impl<'a> Iterator for Lexer<'a> {
                 start_position..self.position
             )),
             None => return None,
-        }
-    }
-}
-
-impl<'a> Lexer<'a> {
-    pub(crate) fn new() -> Lexer<'a> {
-        Lexer {
-            chars: "".chars().peekable(),
-            position: 0,
-        }
-    }
-
-    pub(crate) fn lex(&mut self, input: &'a str, tokens: &mut Vec<Token>) -> () {
-        self.chars = input.chars().peekable();
-        while let Some(token) = self.next() {
-            tokens.push(token);
         }
     }
 
@@ -86,7 +88,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn build_string(&mut self, start_position: usize, _start_char: char) -> Option<Token> {
-        let start_char =self.read_char().unwrap();
+        let start_char = self.read_char().unwrap();
         let str = self.continue_while(start_char, |c| *c != '"' && *c != '”');
         let closing_apos = self.read_char();
         if closing_apos.is_none() {

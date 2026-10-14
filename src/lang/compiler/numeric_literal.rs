@@ -1,10 +1,7 @@
 use std::ops::Range;
 
-use crate::lang::compiler::{
-    CompilerError, ErrorCode,
-    token::{Token, TokenType},
-    unshift::Unshift,
-};
+use super::lexer::token::{Token, TokenType};
+use crate::lang::compiler::{CompilerError, ErrorCode, iter::unshift::Unshift};
 
 pub(crate) fn parse_numeric_literal(
     from: String,
@@ -93,7 +90,7 @@ pub(crate) fn parse_numeric_literal(
                 kind: ErrorCode::InvalidNumericLiteral,
                 message: format!("Invalid numeric literal {}", from),
                 span_message: format!(
-                    "Invalid numeric literal: Not registered as number token fragment"
+                    "Invalid numeric literal: {} Not registered as number token fragment", c
                 ),
                 span: span.clone(),
             }),
@@ -191,7 +188,7 @@ fn check_next_part_correct_grammar(
         Err(CompilerError {
             kind: ErrorCode::InvalidNumericLiteral,
             message: format!("Invalid numeric literal {}", cur),
-            span_message: format!("Invalid numeric literal"),
+            span_message: format!("Invalid numeric literal '{}' in {}", from, cur),
             span: span.clone(),
         })
     }
@@ -239,10 +236,8 @@ static WORD_TO_NUMBER: phf::Map<&'static str, usize> = phf::phf_map! {
 
 #[cfg(test)]
 mod tests {
-    use crate::lang::compiler::{
-        numeric_literal::parse_numeric_literal,
-        token::{Token, TokenType},
-    };
+    use crate::lang::compiler::numeric_literal::parse_numeric_literal;
+    use crate::lang::compiler::{Token, TokenType};
 
     macro_rules! assert_number_converted {
         ($literal:expr, $numerical:tt) => {

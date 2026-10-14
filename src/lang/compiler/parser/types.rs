@@ -1,14 +1,13 @@
 use serde::Serialize;
 
-use crate::lang::compiler::{
+use super::super::{
     CompilerError, ErrorCode,
-    token::{ARTICLES, Token, TokenStream, TokenType},
-    unshift::UnshiftExpect,
+    iter::unshift::UnshiftExpect,
+    lexer::token::{ARTICLES, Token, TokenStream, TokenType},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub(crate) enum PolderType {
-    Uninitialized,
     Boolean,
     String,
     Integer,

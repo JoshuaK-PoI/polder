@@ -2,16 +2,13 @@ use std::io::{BufWriter, stdin, stdout};
 
 use clap::Parser;
 
-use crate::{
-    io::Io,
-    lang::{interpreter::Interpreter, program_options::ProgramOptions},
-    logger::ErrorLogger,
-};
+use crate::{io::Io, lang::interpreter::Interpreter, logger::ErrorLogger};
 
 mod args;
 mod io;
 mod lang;
 mod logger;
+mod program_options;
 
 fn main() {
     let args = args::Args::parse();
@@ -25,7 +22,7 @@ fn main() {
     })
     .expect("Could not initialize logger");
 
-    let program_options = ProgramOptions {
+    let program_options = program_options::ProgramOptions {
         print_ast: args.print_ast,
     };
 
@@ -47,8 +44,9 @@ fn main() {
 mod tests {
     use crate::{
         io::Io,
-        lang::{interpreter::Interpreter, program_options::ProgramOptions},
+        lang::{interpreter::Interpreter, },
         logger,
+        program_options::ProgramOptions
     };
     use log;
     use std::{fs, path::Path};
@@ -137,15 +135,17 @@ mod tests {
                 &program_options,
             )
             .run(&mut io)
-            .unwrap();
-            let result = String::from_utf8(output).unwrap();
-            let expected_output = fs::read_to_string(path.with_extension("fout")).unwrap();
-
-            println!("Output: {:?}", result);
-            println!("Expect: {:?}", expected_output);
-            println!("Same? : {}", result == expected_output);
-            assert!(result == expected_output);
-            println!("{}", "");
+            .map_err(|e| {
+                let error = serde_json::to_string(&e).unwrap();
+                let expected_output = fs::read_to_string(path.with_extension("fout")).unwrap();
+                let expected_output = expected_output.trim();
+                println!("Output: {}", error);
+                println!("Expect: {}", expected_output);
+                println!("Same? : {}", error == expected_output);
+                assert!(error == expected_output);
+                println!("{}", "");
+            })
+            .expect_err(format!("Expected failure on {}, but passed", file_name).as_str());
         }
     }
 }

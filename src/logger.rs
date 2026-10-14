@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub(crate) struct PolderError {
     pub(crate) message: String,
     pub(crate) span_message: String,
@@ -46,6 +46,7 @@ impl<'a> ErrorLogger<'a> {
 
 use ariadne::Color;
 use log::{LevelFilter, Metadata, Record};
+use serde::Serialize;
 
 struct SimpleLogger;
 

@@ -3,10 +3,13 @@ use std::ops::Range;
 use crate::{
     io::Io,
     lang::{
-        compiler::{
+        compiler::parser::{
             expression::ExpressionType, intrinsic::Intrinsics, statement::IntrinsicStatement,
         },
-        interpreter::{runtime_error::RuntimeError, runtime_error::RuntimeErrorKind, store::Store},
+        interpreter::{
+            runtime_error::{RuntimeError, RuntimeErrorKind},
+            store::Store,
+        },
     },
     runtime_error,
 };
@@ -31,50 +34,31 @@ fn print(
     store: &mut Store,
     io: &mut Io,
 ) -> Result<(), RuntimeError> {
-    if intrinsic.args.is_empty() {
-        Err(runtime_error!(
-            range.clone(),
-            RuntimeErrorKind::NoArgumentsProvided,
-            intrinsic.intrinsic
-        ))
-    } else {
-        for arg in intrinsic.args.iter() {
-            match arg.expression {
-                ExpressionType::StringExpr(ref content) => {
-                    io.write(content.text.as_str())
-                        .map_err(|e| runtime_error!(range.clone(), RuntimeErrorKind::IOError))?;
-                }
-                ExpressionType::Identifier(ref content) => {
-                    let value = store.get_variable_by_name(&content.name);
-
-                    if value.is_none() {
-                        return Err(runtime_error!(
-                            range.clone(),
-                            RuntimeErrorKind::UndefinedVariable,
-                            content.name
-                        ));
-                    }
-
-                    if value.unwrap().get_value().is_none() {
-                        return Err(runtime_error!(
-                            range.clone(),
-                            RuntimeErrorKind::VariableHasNoValue,
-                            content.name
-                        ));
-                    }
-
-                    io.write(value.unwrap().get_value().as_ref().unwrap().as_str())
-                        .map_err(|_| runtime_error!(range.clone(), RuntimeErrorKind::IOError))?;
-                }
-            }
-        }
-
-        if add_newline {
-            io.write("\n")
-                .map_err(|_| runtime_error!(range.clone(), RuntimeErrorKind::IOError))?;
-        }
-        Ok(())
+    for arg in intrinsic.args.iter() {
+        match arg.expression {
+            ExpressionType::StringExpr(ref content) => io.write(content.text.as_str())?,
+            ExpressionType::Identifier(ref content) => match store.get(&content.name) {
+                Some(variable) => match variable.get_value() {
+                    Some(value) => Ok(io.write(value)?),
+                    None => Err(runtime_error!(
+                        range.clone(),
+                        RuntimeErrorKind::VariableHasNoValue,
+                        content.name
+                    )),
+                },
+                None => Err(runtime_error!(
+                    range.clone(),
+                    RuntimeErrorKind::UndefinedVariable,
+                    content.name
+                )),
+            }?,
+        };
     }
+
+    if add_newline {
+        io.write("\n")?;
+    }
+    Ok(())
 }
 
 fn readline(
@@ -88,7 +72,8 @@ fn readline(
             ExpressionType::Identifier(ident) => Ok(ident.name.clone()),
             other => Err(runtime_error!(
                 range.clone(),
-                RuntimeErrorKind::UndefinedError
+                RuntimeErrorKind::MismatchedType,
+                other
             )),
         },
         None => Err(runtime_error!(
@@ -97,11 +82,13 @@ fn readline(
         )),
     }?;
 
-    let input = io
-        .read_line()
-        .map_err(|e| runtime_error!(range.clone(), RuntimeErrorKind::IOError))?;
-    store
-        .write(&identifier, &input, range)
-        .map_err(|e| runtime_error!(range.clone(), RuntimeErrorKind::UndefinedError, identifier))?;
-    Ok(())
+    let input = io.read_line()?;
+    if input.is_none() {
+        Err(runtime_error!(
+            range.clone(),
+            RuntimeErrorKind::NoInputGiven
+        ))
+    } else {
+        store.write(&identifier, &input.unwrap(), range)
+    }
 }

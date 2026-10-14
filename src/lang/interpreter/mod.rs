@@ -10,17 +10,17 @@ use crate::{
     io::Io,
     lang::{
         compiler::{
-            Compiler,
-            statement::{
+            self,
+            iter::unshift::Unshift,
+            parser::statement::{
                 SpannedStatement, StatementType, VariableAssignmentStatement,
                 VariableDeclarationStatement,
             },
-            unshift::Unshift,
         },
         interpreter::runtime_error::RuntimeError,
-        program_options::ProgramOptions,
     },
     logger::PolderError,
+    program_options::ProgramOptions,
 };
 use store::Store;
 
@@ -48,8 +48,7 @@ impl Interpreter<'_> {
     }
 
     pub(crate) fn run(&mut self, io: &mut Io) -> Result<(), PolderError> {
-        let mut compiler = Compiler::new(&self.input, &self.filename);
-        let mut ast = compiler.compile()?;
+        let mut ast = compiler::compile(&self.input, &self.filename)?;
 
         if self.program_options.print_ast {
             let ast_outname = self.filename.to_owned() + "__ast.json";

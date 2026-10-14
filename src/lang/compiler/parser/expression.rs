@@ -1,7 +1,7 @@
 use crate::lang::compiler::{
     CompilerError, CompilerResult, ErrorCode,
-    token::{Span, TokenStream, TokenType},
-    unshift::Unshift,
+    iter::unshift::Unshift,
+    lexer::token::{Span, TokenStream, TokenType},
 };
 use serde::Serialize;
 
@@ -14,7 +14,20 @@ pub(crate) struct Expression {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) enum ExpressionType {
     StringExpr(StringExpression),
-    Identifier(IdentifierExpresion),
+    Identifier(IdentifierExpression),
+}
+
+impl std::fmt::Display for ExpressionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ExpressionType::StringExpr(_) => "String expression".to_string(),
+                ExpressionType::Identifier(_) => "Identifier".to_string(),
+            }
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -23,7 +36,7 @@ pub(crate) struct StringExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct IdentifierExpresion {
+pub(crate) struct IdentifierExpression {
     pub(crate) name: String,
 }
 
@@ -48,7 +61,7 @@ impl Expression {
                     let token = tokens.unshift().unwrap();
 
                     Ok(Expression {
-                        expression: ExpressionType::Identifier(IdentifierExpresion {
+                        expression: ExpressionType::Identifier(IdentifierExpression {
                             name: token.value.clone(),
                         }),
                         span: token.span.clone(),

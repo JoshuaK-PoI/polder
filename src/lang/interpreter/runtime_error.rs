@@ -4,9 +4,16 @@ use crate::logger::PolderError;
 
 #[macro_export]
 macro_rules! runtime_error {
+    ($span: expr, $kind:expr, $message:expr, $formatter:expr) => {
+        RuntimeError {
+            message: format!("{} {}", $message, String::from($kind)),
+            span_message: $formatter,
+            span: $span,
+        }
+    };
+
     ($span: expr, $kind:expr, $message:expr) => {
         RuntimeError {
-            kind: $kind,
             message: format!("{} {}", $message, String::from($kind)),
             span_message: format!("{} {}", $message, String::from($kind)),
             span: $span,
@@ -15,7 +22,6 @@ macro_rules! runtime_error {
 
     ($span: expr, $kind:expr) => {
         RuntimeError {
-            kind: $kind,
             message: format!("{}", String::from($kind)),
             span_message: format!("{}", String::from($kind)),
             span: $span,
@@ -24,7 +30,6 @@ macro_rules! runtime_error {
 }
 
 pub(crate) struct RuntimeError {
-    pub(crate) kind: RuntimeErrorKind,
     pub(crate) message: String,
     pub(crate) span_message: String,
     pub(crate) span: Range<usize>,
@@ -39,13 +44,20 @@ impl From<RuntimeError> for PolderError {
         }
     }
 }
+
+impl From<std::io::Error> for RuntimeError {
+    fn from(value: std::io::Error) -> Self {
+        runtime_error!(0..0, RuntimeErrorKind::IOError, value)
+    }
+}
 pub(crate) enum RuntimeErrorKind {
     UndefinedVariable,
     VariableAlreadyDefined,
     VariableHasNoValue,
+    MismatchedType,
     NoArgumentsProvided,
+    NoInputGiven,
     IOError,
-    UndefinedError,
 }
 
 impl From<RuntimeErrorKind> for String {
@@ -54,9 +66,10 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::UndefinedVariable => "bestaat niet".to_string(),
             RuntimeErrorKind::VariableAlreadyDefined => "bestaat al".to_string(),
             RuntimeErrorKind::VariableHasNoValue => "heeft nog geen waarde".to_string(),
+            RuntimeErrorKind::MismatchedType => "Verkeerd type".to_string(),
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
+            RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
             RuntimeErrorKind::IOError => "I/O Error".to_string(),
-            RuntimeErrorKind::UndefinedError => "Undefined Error".to_string(),
         }
     }
 }

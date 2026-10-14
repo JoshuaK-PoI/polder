@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::lang::compiler::token::TokenType;
+use super::super::TokenType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub(crate) enum Intrinsics {

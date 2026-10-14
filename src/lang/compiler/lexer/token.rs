@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::lang::compiler::{
     CompilerError, CompilerResult,
-    unshift::{Unshift, UnshiftExpect},
+    iter::unshift::{Unshift, UnshiftExpect},
 };
 
 pub(crate) type Span = std::ops::Range<usize>;

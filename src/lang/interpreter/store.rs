@@ -1,8 +1,8 @@
-use std::ops::Range;
+use std::{collections::HashMap, ops::Range};
 
 use crate::{
     lang::{
-        compiler::{
+        compiler::parser::{
             statement::{VariableAssignmentStatement, VariableDeclarationStatement},
             types::PolderType,
         },
@@ -12,12 +12,12 @@ use crate::{
 };
 
 pub(crate) struct Store {
-    variables: Vec<Variable>,
+    variables: HashMap<String, Variable>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Variable {
-    variable_type: Option<PolderType>,
+    variable_type: PolderType,
     variable_ident: String,
     variable_value: Option<String>,
     is_const: bool,
@@ -28,11 +28,7 @@ impl From<&Variable> for String {
         format!(
             "<{}{}> {} {:<16.16}",
             if value.is_const { "(const) " } else { "" },
-            if value.variable_type.is_some() {
-                value.variable_type.as_ref().unwrap()
-            } else {
-                &PolderType::Uninitialized
-            },
+            value.variable_type,
             value.variable_ident,
             if value.variable_value.is_some() {
                 format!("\"{}\"", value.variable_value.as_ref().unwrap())
@@ -52,7 +48,7 @@ impl std::fmt::Display for Variable {
 impl Store {
     pub(crate) fn new() -> Store {
         Store {
-            variables: Vec::new(),
+            variables: HashMap::new(),
         }
     }
 
@@ -61,9 +57,18 @@ impl Store {
         variable: Variable,
         range: &Range<usize>,
     ) -> Result<(), RuntimeError> {
-        self.check_variable_not_already_defined(&variable, range)?;
-        self.variables.push(variable);
+        if self.variable_defined(&variable.variable_ident) {
+            return Err(runtime_error!(
+                range.clone(),
+                RuntimeErrorKind::VariableAlreadyDefined,
+                variable.variable_ident
+            ));
+        }
 
+        // self.check_type_compatible(variable);
+
+        self.variables
+            .insert(variable.variable_ident.clone(), variable);
         Ok(())
     }
 
@@ -81,48 +86,27 @@ impl Store {
         value: &String,
         range: &Range<usize>,
     ) -> Result<(), RuntimeError> {
-        match self
-            .variables
-            .iter_mut()
-            .find(|v| v.variable_ident == *identifier)
-        {
-            Some(v) => {
-                v.variable_value = Some(value.clone());
-                Ok(())
-            }
-            None => Err(runtime_error!(
+        if !self.variable_defined(identifier) {
+            return Err(runtime_error!(
                 range.clone(),
                 RuntimeErrorKind::UndefinedVariable,
                 identifier
-            )),
+            ));
         }
+
+        self.variables
+            .entry(identifier.clone())
+            .and_modify(|variable| variable.variable_value = Some(value.clone()));
+
+        Ok(())
     }
 
-    fn check_variable_not_already_defined(
-        &self,
-        variable: &Variable,
-        range: &Range<usize>,
-    ) -> Result<(), RuntimeError> {
-        if self
-            .variables
-            .iter()
-            .filter(|v| v.variable_ident == variable.variable_ident)
-            .collect::<Vec<&Variable>>()
-            .len()
-            > 0
-        {
-            Err(runtime_error!(
-                range.clone(),
-                RuntimeErrorKind::VariableAlreadyDefined,
-                variable.variable_ident
-            ))
-        } else {
-            Ok(())
-        }
+    fn variable_defined(&self, identifier: &String) -> bool {
+        self.get(identifier).is_some()
     }
 
-    pub(crate) fn get_variable_by_name(&self, name: &String) -> Option<&Variable> {
-        self.variables.iter().find(|v| name.eq(&v.variable_ident))
+    pub(crate) fn get(&self, identifier: &String) -> Option<&Variable> {
+        self.variables.get(identifier)
     }
 }
 

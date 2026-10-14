@@ -1,13 +1,16 @@
 use serde::Serialize;
 
-use crate::lang::compiler::{
+use super::super::{
     CompilerError, CompilerResult, ErrorCode,
+    iter::unshift::{Unshift, UnshiftExpect},
+    lexer::token::{LITERALS, Span, TokenStream, TokenType},
+    numeric_literal::parse_numeric_literal,
+};
+
+use super::{
     expression::Expression,
     intrinsic::Intrinsics,
-    numeric_literal::parse_numeric_literal,
-    token::{LITERALS, Span, TokenStream, TokenType},
     types::{PolderType, parse_type},
-    unshift::{Unshift, UnshiftExpect},
 };
 
 pub(crate) type SpannedStatement = (StatementType, Span);
@@ -42,7 +45,7 @@ pub(crate) struct IntrinsicStatement {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: String,
-    pub(crate) variable_type: Option<PolderType>,
+    pub(crate) variable_type: PolderType,
     pub(crate) value_literal: Option<String>,
     pub(crate) is_const: bool,
 }
@@ -134,7 +137,7 @@ impl Statement {
             return Ok((
                 StatementType::VariableDeclaration(VariableDeclarationStatement {
                     identifier: identifier.value,
-                    variable_type: Some(type_),
+                    variable_type: type_,
                     value_literal: None,
                     is_const,
                 }),
@@ -166,7 +169,7 @@ impl Statement {
         Ok((
             StatementType::VariableDeclaration(VariableDeclarationStatement {
                 identifier: identifier.value,
-                variable_type: Some(type_),
+                variable_type: type_,
                 value_literal: Some(value.unwrap().value),
                 is_const,
             }),
