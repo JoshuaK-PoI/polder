@@ -52,7 +52,7 @@ impl<'a> Lexer<'a> {
         let start_position = self.position;
 
         match self.read_char() {
-            Some('„') | Some('”') | Some('"') => self.build_string(start_position),
+            Some('„') | Some('“') | Some('"') => self.build_string(start_position),
             Some('\'') => self.build_char(start_position),
             Some('.') => Ok(Some(make_token!(
                 FullStop,
