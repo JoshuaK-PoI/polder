@@ -70,17 +70,15 @@ impl Statement {
                 _ => todo!("Statement::parse < {} >", token.type_),
             }?;
 
-            let fullstop = tokens.unshift_expect(TokenType::FullStop);
-            if fullstop.is_err() {
-                Err(CompilerError {
+            tokens
+                .unshift_expect(TokenType::FullStop)
+                .map_err(|_| CompilerError {
                     kind: ErrorCode::StatementNotTerminated,
                     message: format!("Een zin eindigt met een punt."),
                     span_message: format!("Ik verwachtte hier het einde van een zin."),
-                    span: stmt.1,
-                })
-            } else {
-                Ok(stmt)
-            }
+                    span: stmt.1.clone(),
+                })?;
+            Ok(stmt)
         } else {
             Err(CompilerError {
                 kind: ErrorCode::NoTokensLeft,
