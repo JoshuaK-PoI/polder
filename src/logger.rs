@@ -1,3 +1,6 @@
+use ariadne::{Color, ColorGenerator, Label, Report, ReportKind, Source};
+use log::{LevelFilter, Metadata, Record};
+use serde::Serialize;
 use std::ops::Range;
 
 #[derive(Debug, Serialize)]
@@ -18,7 +21,6 @@ impl<'a> ErrorLogger<'a> {
     }
 
     pub(crate) fn report<'b>(&'a self, error_detail: &'b PolderError) -> () {
-        use ariadne::{ColorGenerator, Label, Report, ReportKind, Source};
         let mut colors = ColorGenerator::new();
         let color_1 = colors.next();
 
@@ -38,15 +40,7 @@ impl<'a> ErrorLogger<'a> {
             .eprint((self.filename, Source::from(self.input)))
             .unwrap();
     }
-
-    pub(crate) fn report_many(&self, errors: &[PolderError]) -> () {
-        errors.iter().for_each(|error| self.report(error));
-    }
 }
-
-use ariadne::Color;
-use log::{LevelFilter, Metadata, Record};
-use serde::Serialize;
 
 struct SimpleLogger;
 

@@ -1,4 +1,7 @@
-use std::io::{BufWriter, stdin, stdout};
+use std::{
+    io::{BufWriter, stdin, stdout},
+    process::exit,
+};
 
 use clap::Parser;
 
@@ -20,7 +23,10 @@ fn main() {
     } else {
         log::LevelFilter::Info
     })
-    .expect("Could not initialize logger");
+    .unwrap_or_else(|e| {
+        eprintln!("Could not start logger: {}", e);
+        exit(1);
+    });
 
     let program_options = program_options::ProgramOptions {
         print_ast: args.print_ast,
@@ -32,13 +38,15 @@ fn main() {
     let mut io = Io::new(&mut input, &mut output);
 
     let input = std::fs::read_to_string(&args.input).unwrap_or_else(|err| {
-        panic!("Error reading file: {} ", err);
+        eprintln!("Could not read file {}: {} ", &args.input, err);
+        exit(1);
     });
 
     Interpreter::new(&input, &args.input, &program_options)
         .run(&mut io)
         .unwrap_or_else(|err| ErrorLogger::new(&input, &args.input).report(&err));
 }
+
 #[cfg(test)]
 mod tests {
     use crate::{io::Io, lang::interpreter::Interpreter, logger, program_options::ProgramOptions};

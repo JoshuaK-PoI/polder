@@ -2,6 +2,7 @@ pub(crate) mod token;
 
 use std::str::Chars;
 
+use log::trace;
 use peekable_next::{PeekNext, PeekableNext};
 use token::{KEYWORDS, Token, TokenType};
 
@@ -29,6 +30,12 @@ impl<'a> Lexer<'a> {
 
         while let Some(token) = lexer.next()? {
             tokens.push(token);
+        }
+
+        if log::max_level() >= log::LevelFilter::Trace {
+            trace!("{:^16}|{:^16} @ {}", "Type", "Literal", "Position");
+            trace!("{:-<1$}", "", 40);
+            tokens.iter().for_each(|token| trace!("{}", token));
         }
 
         Ok(tokens)

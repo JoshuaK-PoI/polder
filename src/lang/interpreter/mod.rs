@@ -48,7 +48,7 @@ impl Interpreter<'_> {
     }
 
     pub(crate) fn run(&mut self, io: &mut Io) -> Result<(), PolderError> {
-        let mut ast = compiler::compile(&self.input, &self.filename)?;
+        let mut ast = compiler::compile(&self.input)?;
 
         if self.program_options.print_ast {
             let ast_outname = self.filename.to_owned() + "__ast.json";

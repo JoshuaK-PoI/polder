@@ -90,7 +90,8 @@ pub(crate) fn parse_numeric_literal(
                 kind: ErrorCode::InvalidNumericLiteral,
                 message: format!("Invalid numeric literal {}", from),
                 span_message: format!(
-                    "Invalid numeric literal: {} Not registered as number token fragment", c
+                    "Invalid numeric literal: {} Not registered as number token fragment",
+                    c
                 ),
                 span: span.clone(),
             }),
@@ -236,8 +237,8 @@ static WORD_TO_NUMBER: phf::Map<&'static str, usize> = phf::phf_map! {
 
 #[cfg(test)]
 mod tests {
+    use crate::lang::compiler::lexer::token::{Token, TokenType};
     use crate::lang::compiler::numeric_literal::parse_numeric_literal;
-    use crate::lang::compiler::{Token, TokenType};
 
     macro_rules! assert_number_converted {
         ($literal:expr, $numerical:tt) => {
