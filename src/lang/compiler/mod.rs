@@ -1,6 +1,6 @@
 pub(super) mod iter;
-pub(super) mod parser;
 pub(super) mod lexer;
+pub(super) mod parser;
 
 mod numeric_literal;
 
@@ -64,7 +64,8 @@ impl std::fmt::Display for ErrorCode {
 }
 pub(crate) fn compile(input: &str, filename: &str) -> Result<AST, CompilerError> {
     let error_logger = ErrorLogger::new(input, filename);
-    let mut tokens = Lexer::new(input).lex();
+
+    let mut tokens = Lexer::lex(input);
 
     let unknown_tokens: Vec<&Token> = tokens
         .iter()

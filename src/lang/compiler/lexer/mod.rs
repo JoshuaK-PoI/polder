@@ -1,9 +1,9 @@
 pub(crate) mod token;
 
-use std::{iter::Peekable, str::Chars};
+use std::str::Chars;
 
+use peekable_next::{PeekNext, PeekableNext};
 use token::{KEYWORDS, Token, TokenType};
-
 
 macro_rules! make_token {
     ($type_:ident, $value:expr, $span:expr) => {
@@ -16,26 +16,25 @@ macro_rules! make_token {
 }
 
 pub(crate) struct Lexer<'a> {
-    pub(crate) chars: Peekable<Chars<'a>>,
+    pub(crate) chars: PeekableNext<Chars<'a>>,
     position: usize,
 }
 
 impl<'a> Lexer<'a> {
-    pub(crate) fn new(input: &'a str) -> Lexer<'a> {
-        let chars = input.chars().peekable();
-        Lexer {
-            chars,
-            position: 0,
-        }
-    }
+    pub(crate) fn lex(input: &'a str) -> Vec<Token> {
+        let mut lexer = Lexer::new(input);
 
-    pub(crate) fn lex(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
-        while let Some(token) = self.next() {
+        while let Some(token) = lexer.next() {
             tokens.push(token);
         }
 
         tokens
+    }
+
+    fn new(input: &'a str) -> Self {
+        let chars = input.chars().peekable_next();
+        Lexer { chars, position: 0 }
     }
 
     fn next(&mut self) -> Option<Token> {
@@ -123,23 +122,21 @@ impl<'a> Lexer<'a> {
     }
 
     fn build_number(&mut self, start_position: usize, c: char) -> Option<Token> {
-        let str = self.continue_while(c, |c| c.is_ascii_digit() || c == &',');
-        let value = str.into_iter().collect::<String>();
-        let commas = value.chars().filter(|c| c == &',').count();
-        if commas > 1 {
-            // @TODO Support error handling in lexer
-            panic!("Found more than one comma in number allocation")
-        }
-        if commas == 1 {
+        let mut str = self.continue_while(c, |c| c.is_ascii_digit());
+        if self.chars.peek().is_some_and(|c| *c == ',')
+            && self.chars.peek_next().is_some_and(|c| c.is_ascii_digit())
+        {
+            let comma = self.read_char().unwrap();
+            str.extend(self.continue_while(comma, |c| c.is_ascii_digit()));
             Some(make_token!(
                 FloatLiteral,
-                value,
+                str.iter().collect::<String>(),
                 start_position..self.position
             ))
         } else {
             Some(make_token!(
                 IntegerLiteral,
-                value,
+                str.iter().collect::<String>(),
                 start_position..self.position
             ))
         }

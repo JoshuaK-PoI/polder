@@ -42,12 +42,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        io::Io,
-        lang::{interpreter::Interpreter, },
-        logger,
-        program_options::ProgramOptions
-    };
+    use crate::{io::Io, lang::interpreter::Interpreter, logger, program_options::ProgramOptions};
     use log;
     use std::{fs, path::Path};
 
