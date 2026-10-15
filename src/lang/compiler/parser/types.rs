@@ -31,14 +31,17 @@ impl From<String> for PolderType {
 
 impl From<&PolderType> for String {
     fn from(value: &PolderType) -> Self {
-        format!("{}", match value {
-            PolderType::Boolean => "waarheid",
-            PolderType::String => "tekst",
-            PolderType::Integer => "getal",
-            PolderType::MaybeInteger => "getal",
-            PolderType::Float => "kommagetal",
-            PolderType::Char => "karakter",
-        })
+        format!(
+            "{}",
+            match value {
+                PolderType::Boolean => "waarheid",
+                PolderType::String => "tekst",
+                PolderType::Integer => "getal",
+                PolderType::MaybeInteger => "getal",
+                PolderType::Float => "kommagetal",
+                PolderType::Char => "karakter",
+            }
+        )
     }
 }
 
@@ -88,9 +91,9 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, Compile
         }
         _ => Err(CompilerError {
             kind: ErrorCode::InvalidTypeDeclaration,
-            message: format!("Unknown type: {}", typedecl.value),
+            message: format!("'{}' is geen type", typedecl.value),
             span: typedecl.span.clone(),
-            span_message: format!("{} is not a known type", typedecl.value),
+            span_message: format!("'{}' is geen bekend type ", typedecl.value),
         }),
     }
 }
@@ -107,10 +110,19 @@ impl PolderType {
             TokenType::Identifier => Ok(PolderType::MaybeInteger),
             _ => Err(CompilerError {
                 kind: ErrorCode::CannotInferVariableType,
-                message: format!("Cannot infer variable type from {}", token.type_),
-                span_message: format!("'{}' has no associated variable type", token.value),
+                message: format!("'{}' is geen type", token.type_),
+                span_message: format!("'{}' is geen bekend type.", token.value),
                 span: token.span.clone(),
             }),
+        }
+    }
+
+    pub(crate) fn article_for(type_: &Self) -> TokenType {
+        match type_ {
+            PolderType::Boolean | PolderType::Char | PolderType::String => TokenType::KWArticleDefD,
+            PolderType::Integer | PolderType::MaybeInteger | PolderType::Float => {
+                TokenType::KWArticleDefH
+            }
         }
     }
 }

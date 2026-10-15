@@ -1,1 +1,1 @@
-regel 1: Doe normaal: een constante heeft een waarde nodig.
+{"message":"Geen waarde toegewezen aan constante.","span_message":"Een constante variabele heeft een waarde nodig.","span":{"start":5,"end":7}}

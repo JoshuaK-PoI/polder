@@ -5,6 +5,8 @@ use std::str::Chars;
 use peekable_next::{PeekNext, PeekableNext};
 use token::{KEYWORDS, Token, TokenType};
 
+use crate::lang::compiler::{CompilerError, ErrorCode};
+
 macro_rules! make_token {
     ($type_:ident, $value:expr, $span:expr) => {
         Token {
@@ -21,15 +23,15 @@ pub(crate) struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    pub(crate) fn lex(input: &'a str) -> Vec<Token> {
+    pub(crate) fn lex(input: &'a str) -> Result<Vec<Token>, CompilerError> {
         let mut lexer = Lexer::new(input);
-
         let mut tokens = Vec::new();
-        while let Some(token) = lexer.next() {
+
+        while let Some(token) = lexer.next()? {
             tokens.push(token);
         }
 
-        tokens
+        Ok(tokens)
     }
 
     fn new(input: &'a str) -> Self {
@@ -37,29 +39,28 @@ impl<'a> Lexer<'a> {
         Lexer { chars, position: 0 }
     }
 
-    fn next(&mut self) -> Option<Token> {
+    fn next(&mut self) -> Result<Option<Token>, CompilerError> {
         self.skip_whitespace();
 
         let start_position = self.position;
 
         match self.read_char() {
-            Some('„') => self.build_string(start_position, '„'),
-            Some('”') => self.build_string(start_position, '”'),
-            Some('"') => self.build_string(start_position, '"'),
+            Some('„') | Some('”') | Some('"') => self.build_string(start_position),
             Some('\'') => self.build_char(start_position),
-            Some('.') => Some(make_token!(
+            Some('.') => Ok(Some(make_token!(
                 FullStop,
                 String::from("."),
                 start_position..self.position
-            )),
+            ))),
             Some(c) if c.is_alphabetic() => self.build_identifier(start_position, c),
             Some(c) if c.is_ascii_digit() => self.build_number(start_position, c),
-            Some(c) => Some(make_token!(
-                Unknown,
-                String::from(c),
-                start_position..self.position
-            )),
-            None => return None,
+            Some(c) => Err(CompilerError {
+                kind: ErrorCode::UnexpectedCharacter,
+                message: format!("Compiler doesn't know '{}'", c),
+                span_message: format!("{} is not a valid character", c),
+                span: self.position - 1..self.position,
+            }),
+            None => Ok(None),
         }
     }
 
@@ -77,6 +78,25 @@ impl<'a> Lexer<'a> {
         c
     }
 
+    fn expect_char(
+        &mut self,
+        expected: &[char],
+        error_message: &str,
+    ) -> Result<char, CompilerError> {
+        let char = self.read_char();
+
+        if char.is_none_or(|c| !expected.contains(&c)) {
+            Err(CompilerError {
+                kind: ErrorCode::UnexpectedCharacter,
+                message: error_message.to_string(),
+                span_message: error_message.to_string(),
+                span: self.position - 1..self.position,
+            })
+        } else {
+            Ok(char.unwrap())
+        }
+    }
+
     fn continue_while(&mut self, c: char, f: impl Fn(&char) -> bool) -> Vec<char> {
         let mut v = vec![c];
         while let Some(c) = self.chars.next_if(&f) {
@@ -87,81 +107,88 @@ impl<'a> Lexer<'a> {
         v
     }
 
-    fn build_string(&mut self, start_position: usize, _start_char: char) -> Option<Token> {
+    fn build_string(&mut self, start_position: usize) -> Result<Option<Token>, CompilerError> {
         let start_char = self.read_char().unwrap();
+        // @TODO: Quote escaping is not supported here - either support escaping with backslashes, or support escaping by using the
+        // other Unicode character than the one we started the string with
         let str = self.continue_while(start_char, |c| *c != '"' && *c != '”');
-        let closing_apos = self.read_char();
-        if closing_apos.is_none() {
-            panic!("Expected closing apostrophe before end of file");
-        }
+        self.expect_char(
+            &['"', '”'],
+            "Expected closing apostrophe before end of file",
+        )?;
 
         let text = str.into_iter().collect::<String>();
-        Some(make_token!(
+        Ok(Some(make_token!(
             StringLiteral,
             text,
             start_position..self.position
-        ))
+        )))
     }
 
-    fn build_identifier(&mut self, start_position: usize, c: char) -> Option<Token> {
+    fn build_identifier(
+        &mut self,
+        start_position: usize,
+        c: char,
+    ) -> Result<Option<Token>, CompilerError> {
         let str = self.continue_while(c, |c| c.is_alphanumeric() || *c == '_');
         let ident = str.into_iter().collect::<String>();
         if let Some(keyword) = KEYWORDS.get(ident.as_str()) {
-            Some(Token {
+            Ok(Some(Token {
                 type_: *keyword,
                 value: ident,
                 span: start_position..self.position,
-            })
+            }))
         } else {
-            Some(make_token!(
+            Ok(Some(make_token!(
                 Identifier,
                 ident,
                 start_position..self.position
-            ))
+            )))
         }
     }
 
-    fn build_number(&mut self, start_position: usize, c: char) -> Option<Token> {
+    fn build_number(
+        &mut self,
+        start_position: usize,
+        c: char,
+    ) -> Result<Option<Token>, CompilerError> {
         let mut str = self.continue_while(c, |c| c.is_ascii_digit());
         if self.chars.peek().is_some_and(|c| *c == ',')
             && self.chars.peek_next().is_some_and(|c| c.is_ascii_digit())
         {
             let comma = self.read_char().unwrap();
             str.extend(self.continue_while(comma, |c| c.is_ascii_digit()));
-            Some(make_token!(
+            Ok(Some(make_token!(
                 FloatLiteral,
                 str.iter().collect::<String>(),
                 start_position..self.position
-            ))
+            )))
         } else {
-            Some(make_token!(
+            Ok(Some(make_token!(
                 IntegerLiteral,
                 str.iter().collect::<String>(),
                 start_position..self.position
-            ))
+            )))
         }
     }
 
-    fn build_char(&mut self, start_position: usize) -> Option<Token> {
+    fn build_char(&mut self, start_position: usize) -> Result<Option<Token>, CompilerError> {
         let char = self.read_char();
         if char.is_none() {
-            panic!("Expected a character after single quote");
+            return Err(CompilerError {
+                kind: ErrorCode::UnexpectedCharacter,
+                message: "Expected a character after single quote".to_string(),
+                span_message: "Expected a character here".to_string(),
+                span: self.position - 1..self.position,
+            });
         }
 
-        let end_quote = self.read_char();
-        if end_quote.is_none() {
-            panic!("Expected an end quote after character but got nothing")
-        } else if end_quote.unwrap() != '\'' {
-            panic!(
-                "Expected an end quote after a single character, but got '{}'",
-                end_quote.unwrap()
-            )
-        }
+        self.expect_char(&['\''], "Expected a single quote (') here")?;
 
-        Some(make_token!(
+        Ok(Some(make_token!(
             CharLiteral,
             char.unwrap().to_string(),
             start_position..self.position
-        ))
+        )))
     }
 }

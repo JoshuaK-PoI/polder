@@ -1,1 +1,1 @@
-regel 1: Doe normaal: gebruik „het getal” als je een waarde geeft.
+{"message":"'een getal' kan geen waarde hebben","span_message":"Gebruik 'het getal' als je een waarde opgeeft.","span":{"start":5,"end":18}}

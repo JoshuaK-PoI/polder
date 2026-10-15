@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::lang::compiler::lexer::token::Token;
+use crate::lang::compiler::lexer::token::{KEYWORDS, Token};
 
 use super::super::{
     CompilerError, CompilerResult, ErrorCode,
@@ -74,9 +74,9 @@ impl Statement {
             if fullstop.is_err() {
                 Err(CompilerError {
                     kind: ErrorCode::StatementNotTerminated,
-                    message: format!("Expected end of statement"),
-                    span_message: format!("Expected a '.' after this"),
-                    span: fullstop.err().unwrap().span.clone(),
+                    message: format!("Een zin eindigt met een punt."),
+                    span_message: format!("Ik verwachtte hier het einde van een zin."),
+                    span: stmt.1,
                 })
             } else {
                 Ok(stmt)
@@ -109,30 +109,48 @@ impl Statement {
 
     pub fn variable_declaration(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
         let start = tokens.unshift_expect(TokenType::KWLaat)?;
-        let identifier = tokens.unshift_expect(TokenType::Identifier)?;
+        let identifier = Statement::get_identifier(tokens, &start)?;
         let is_const = tokens.unshift_if(TokenType::KWConst).is_some();
         let is_indefinite_article = tokens.next_matches(TokenType::KWArticleIndef);
+
+        if tokens.next_matches(TokenType::KWZijn) {
+            return Err(CompilerError {
+                kind: ErrorCode::CannotInferVariableType,
+                message: format!("Wat is {} dan?", identifier.value),
+                span_message: format!(
+                    "Je moet een type of een waarde toewijzen aan {}",
+                    identifier.value
+                ),
+                span: identifier.span.clone(),
+            });
+        }
+
         let type_ = parse_type(tokens)?;
 
         if is_indefinite_article {
+            if is_const {
+                return Err(CompilerError {
+                    kind: ErrorCode::ConstDeclarationMustHaveValue,
+                    message: format!("Geen waarde toegewezen aan constante."),
+                    span_message: format!("Een constante variabele heeft een waarde nodig."),
+                    span: identifier.span.clone(),
+                });
+            }
+
             if !tokens.next_matches(TokenType::KWZijn) {
                 let token = tokens.unshift();
                 return Err(CompilerError {
                     kind: ErrorCode::IndefiniteCannotHaveValue,
-                    message: format!("Indefinite article cannot have a value."),
+                    message: format!("'een {}' kan geen waarde hebben", type_),
                     span_message: format!(
-                        "Expected {}, got {}",
-                        TokenType::KWZijn,
-                        if token.is_some() {
-                            token.as_ref().unwrap().value.clone()
-                        } else {
-                            "nothing".to_string()
-                        }
+                        "Gebruik '{} {}' als je een waarde opgeeft.",
+                        PolderType::article_for(&type_),
+                        type_
                     ),
                     span: if token.is_some() {
-                        token.unwrap().span.clone()
+                        identifier.span.start..token.unwrap().span.end
                     } else {
-                        0..0
+                        identifier.span.clone()
                     },
                 });
             }
@@ -188,21 +206,7 @@ impl Statement {
         let start = tokens.unshift_expect(intrinsic_name.expected_start_token())?;
         let mut arguments = Vec::new();
 
-        while !tokens.next_matches(intrinsic_name.expected_end_token()) {
-            arguments.push(Expression::parse(tokens)?);
-
-            if !tokens.next_matches(intrinsic_name.expected_end_token()) {
-                return Err(CompilerError {
-                    kind: ErrorCode::UnexpectedToken,
-                    message: format!("Did not expect token {}", tokens.peek().unwrap().type_),
-                    span_message: format!(
-                        "Expected the end of the statement: {}",
-                        intrinsic_name.expected_end_token(),
-                    ),
-                    span: tokens.unshift().unwrap().span.clone(),
-                });
-            }
-        }
+        arguments.push(Expression::parse(tokens)?);
 
         let end = tokens.unshift_expect(intrinsic_name.expected_end_token())?;
 
@@ -213,5 +217,41 @@ impl Statement {
             }),
             start.span.start..end.span.end,
         ))
+    }
+
+    fn get_identifier(
+        tokens: &mut TokenStream,
+        start_token: &Token,
+    ) -> Result<Token, CompilerError> {
+        match tokens.unshift() {
+            None => Err(CompilerError {
+                kind: ErrorCode::NoTokensLeft,
+                message: format!("Naam van de variabele mist"),
+                span_message: format!("Geef een naam voor de variabele op."),
+                span: start_token.span.clone(),
+            }),
+            Some(token) => {
+                if KEYWORDS.contains_key(&token.value) {
+                    Err(CompilerError {
+                        kind: ErrorCode::InvalidIdentifier,
+                        message: format!("'{}' is een gereserveerd woord.", token.value),
+                        span_message: format!("'{}' is een gereserveerd woord.", token.value),
+                        span: token.span.clone(),
+                    })
+                } else if token.type_ != TokenType::Identifier {
+                    Err(CompilerError {
+                        kind: ErrorCode::InvalidIdentifier,
+                        message: format!("Verwacht hier de naam voor de variabele."),
+                        span_message: format!(
+                            "'{}' is geen geldige naam voor een variabele.",
+                            token.value
+                        ),
+                        span: token.span.clone(),
+                    })
+                } else {
+                    Ok(token.to_owned())
+                }
+            }
+        }
     }
 }

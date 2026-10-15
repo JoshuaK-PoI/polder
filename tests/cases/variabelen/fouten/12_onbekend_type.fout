@@ -1,1 +1,1 @@
-regel 1: Doe normaal: „nummer” is geen type.
+{"message":"'nummer' is geen type","span_message":"'nummer' is geen bekend type ","span":{"start":11,"end":17}}

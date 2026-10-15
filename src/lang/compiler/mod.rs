@@ -49,6 +49,9 @@ pub(crate) enum ErrorCode {
     InvalidNumericLiteral,
     CannotInferVariableType,
     IndefiniteCannotHaveValue,
+    UnexpectedCharacter,
+    ConstDeclarationMustHaveValue,
+    InvalidIdentifier,
 }
 
 impl From<ErrorCode> for String {
@@ -65,7 +68,7 @@ impl std::fmt::Display for ErrorCode {
 pub(crate) fn compile(input: &str, filename: &str) -> Result<AST, CompilerError> {
     let error_logger = ErrorLogger::new(input, filename);
 
-    let mut tokens = Lexer::lex(input);
+    let mut tokens = Lexer::lex(input)?;
 
     let unknown_tokens: Vec<&Token> = tokens
         .iter()
