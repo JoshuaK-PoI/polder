@@ -17,6 +17,7 @@ use lexer::{
 
 #[derive(Debug)]
 pub(crate) struct CompilerError {
+    #[allow(dead_code)]
     pub(crate) kind: ErrorCode,
     pub(crate) message: String,
     pub(crate) span_message: String,
@@ -38,7 +39,6 @@ pub(crate) type CompilerResult<T> = Result<T, CompilerError>;
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ErrorCode {
     NoTokensLeft,
-    UnexpectedToken,
     UnknownToken,
     UnshiftedUnexpectedToken,
     InvalidExpression,

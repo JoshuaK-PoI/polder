@@ -39,19 +39,26 @@ fn main() {
         .run(&mut io)
         .unwrap_or_else(|err| ErrorLogger::new(&input, &args.input).report(&err));
 }
-
 #[cfg(test)]
 mod tests {
     use crate::{io::Io, lang::interpreter::Interpreter, logger, program_options::ProgramOptions};
     use log;
+    use std::sync::Once;
     use std::{fs, path::Path};
+
+    static INIT: Once = Once::new();
+
+    fn initialize() {
+        INIT.call_once(|| {
+            logger::init(log::LevelFilter::Off)
+                .unwrap_or_else(|e| panic!("Logger initialization failed: {}", e));
+        })
+    }
 
     #[test]
     fn test_happy_path() {
-        logger::init(log::LevelFilter::Off)
-            .unwrap_or_else(|_| panic!("Logger initialization failed"));
+        initialize();
         let program_options = ProgramOptions { print_ast: false };
-
         let test_dir = Path::new("tests/cases/variabelen/voorbeelden");
         let mut test_files = fs::read_dir(test_dir)
             .unwrap()
@@ -62,13 +69,15 @@ mod tests {
         test_files.sort_by_key(|f| f.path());
 
         assert!(&test_files.len() > &0, "No test files found");
+        let mut report: Vec<String> = Vec::new();
 
         for file in test_files {
             let path = file.path();
             let file_name = path.file_name().unwrap().to_str().unwrap();
 
-            println!("Testing file: {}", file_name);
-            println!("{:-<1$}", "", 40);
+            report.push(format!("Testing file: {}", file_name));
+            report.push(format!("{:-<1$}", "", 40));
+
             let input_str =
                 fs::read_to_string(path.with_extension("in")).unwrap_or_else(|_| String::new());
             let mut input: &[u8] = input_str.as_bytes();
@@ -86,18 +95,21 @@ mod tests {
             let result = String::from_utf8(output).unwrap();
             let expected_output = fs::read_to_string(path.with_extension("uit")).unwrap();
 
-            println!("Output: {:?}", result);
-            println!("Expect: {:?}", expected_output);
-            println!("Same? : {}", result == expected_output);
-            assert!(result == expected_output);
-            println!("{}", "");
+            report.push(format!("Output: {:?}", result));
+            report.push(format!("Expect: {:?}", expected_output));
+
+            if result != expected_output {
+                eprint!("{}", report.join("\n"));
+                assert!(false);
+            }
+
+            report.clear();
         }
     }
 
     #[test]
     fn test_errors() {
-        logger::init(log::LevelFilter::Off)
-            .unwrap_or_else(|_| panic!("Logger initialization failed"));
+        initialize();
         let program_options = ProgramOptions { print_ast: false };
 
         let test_dir = Path::new("tests/cases/variabelen/fouten");
@@ -110,13 +122,14 @@ mod tests {
         test_files.sort_by_key(|f| f.path());
 
         assert!(&test_files.len() > &0, "No test files found");
+        let mut report: Vec<String> = Vec::new();
 
         for file in test_files {
             let path = file.path();
             let file_name = path.file_name().unwrap().to_str().unwrap();
 
-            println!("Testing file: {}", file_name);
-            println!("{:-<1$}", "", 40);
+            report.push(format!("Testing file: {}", file_name));
+            report.push(format!("{:-<1$}", "", 40));
             let input_str =
                 fs::read_to_string(path.with_extension("in")).unwrap_or_else(|_| String::new());
             let mut input: &[u8] = input_str.as_bytes();
@@ -134,13 +147,17 @@ mod tests {
                 let error = serde_json::to_string(&e).unwrap();
                 let expected_output = fs::read_to_string(path.with_extension("fout")).unwrap();
                 let expected_output = expected_output.trim();
-                println!("Output: {}", error);
-                println!("Expect: {}", expected_output);
-                println!("Same? : {}", error == expected_output);
-                assert!(error == expected_output);
-                println!("{}", "");
+                report.push(format!("Output: {}", error));
+                report.push(format!("Expect: {}", expected_output));
+                report.push(format!("Same? : {}", error == expected_output));
+                if error != expected_output {
+                    eprint!("{}", report.join("\n"));
+                    assert!(false);
+                }
             })
             .expect_err(format!("Expected failure on {}, but passed", file_name).as_str());
+
+            report.clear();
         }
     }
 }
