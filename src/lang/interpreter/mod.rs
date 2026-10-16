@@ -12,15 +12,17 @@ use crate::{
         compiler::{
             self,
             iter::unshift::Unshift,
+            lexer::token::{Token, TokenType},
             parser::statement::{
-                SpannedStatement, StatementType, VariableAssignmentStatement,
-                VariableDeclarationStatement,
+                ArithmeticOp, ArithmeticStatement, SpannedStatement, StatementType,
+                VariableAssignmentStatement, VariableDeclarationStatement,
             },
         },
-        interpreter::runtime_error::RuntimeError,
+        interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
     },
     logger::PolderError,
     program_options::ProgramOptions,
+    runtime_error,
 };
 use store::Store;
 
@@ -87,6 +89,7 @@ impl Interpreter<'_> {
             StatementType::Intrinsic(ref intrinsic) => {
                 intrinsic::interpret(intrinsic, &stmt.1, &mut self.store, io)
             }
+            StatementType::Arithmetic(ref arith_op) => self.interpret_arithmetic(arith_op, &stmt.1),
         }
     }
 
@@ -106,5 +109,61 @@ impl Interpreter<'_> {
     ) -> Result<(), RuntimeError> {
         self.store.update(assignment, range)?;
         Ok(())
+    }
+
+    fn interpret_arithmetic(
+        &mut self,
+        arith_op: &ArithmeticStatement,
+        _span: &Range<usize>,
+    ) -> Result<(), RuntimeError> {
+        let dst = if [ArithmeticOp::Add, ArithmeticOp::Subtract].contains(&arith_op.operation) {
+            &arith_op.rhs
+        } else {
+            &arith_op.lhs
+        };
+
+        let left = self.value_as_number(&arith_op.lhs)?;
+        let right = self.value_as_number(&arith_op.rhs)?;
+
+        let result = match arith_op.operation {
+            ArithmeticOp::Add => right + left,
+            ArithmeticOp::Subtract => right - left,
+            ArithmeticOp::Multiply => left * right,
+            ArithmeticOp::Divide => {
+                if right == 0 {
+                    return Err(runtime_error!(
+                        arith_op.rhs.span.clone(),
+                        RuntimeErrorKind::DivideByZero
+                    ));
+                }
+                left / right
+            }
+        };
+
+        self.store.set(&dst.value, result.to_string(), &dst.span)?;
+
+        Ok(())
+    }
+
+    fn value_as_number(&mut self, token: &Token) -> Result<usize, RuntimeError> {
+        match token.type_ {
+            TokenType::Identifier => Ok(self
+                .store
+                .get(&token.value)
+                .unwrap()
+                .get_value()
+                .as_ref()
+                .unwrap()
+                .value
+                .parse::<usize>()
+                .unwrap()),
+            TokenType::IntegerLiteral => Ok(token.value.parse::<usize>().unwrap()),
+            TokenType::FloatLiteral => todo!(),
+            _ => Err(runtime_error!(
+                token.span.clone(),
+                RuntimeErrorKind::MismatchedType,
+                format!("Verwachtte een getal, maar vond '{}'", token.type_)
+            )),
+        }
     }
 }

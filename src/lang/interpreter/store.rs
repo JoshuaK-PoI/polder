@@ -230,6 +230,33 @@ impl Store {
             PolderType::Char => try_char(input),
         }
     }
+
+    pub(crate) fn set(
+        &mut self,
+        identifier: &String,
+        value: String,
+        range: &Range<usize>,
+    ) -> Result<(), RuntimeError> {
+        if !self.variable_defined(identifier) {
+            return Err(runtime_error!(
+                range.clone(),
+                RuntimeErrorKind::UndefinedVariable,
+                identifier
+            ));
+        }
+
+        let variable = self
+            .get(&identifier)
+            .expect("unreachable (already checked existence");
+
+        self.check_const(variable)?;
+
+        self.variables
+            .entry(identifier.clone())
+            .and_modify(|variable| variable.value.as_mut().unwrap().value = value.clone());
+
+        Ok(())
+    }
 }
 
 fn try_bool(input: &String) -> Result<(TokenType, String), RuntimeError> {

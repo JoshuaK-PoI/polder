@@ -22,6 +22,7 @@ pub(crate) enum StatementType {
     VariableDeclaration(VariableDeclarationStatement),
     VariableAssignment(VariableAssignmentStatement),
     Intrinsic(IntrinsicStatement),
+    Arithmetic(ArithmeticStatement),
 }
 
 impl From<&StatementType> for String {
@@ -58,6 +59,21 @@ pub(crate) struct VariableAssignmentStatement {
     pub(crate) value: Token,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) enum ArithmeticOp {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct ArithmeticStatement {
+    pub(crate) operation: ArithmeticOp,
+    pub(crate) lhs: Token,
+    pub(crate) rhs: Token,
+}
+
 impl Statement {
     pub(crate) fn parse(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
         if let Some(token) = tokens.peek() {
@@ -67,6 +83,10 @@ impl Statement {
                 TokenType::KWMaak => Statement::variable_assignment(tokens),
                 TokenType::KWLaat => Statement::variable_declaration(tokens),
                 TokenType::KWLees => Statement::intrinsic(Intrinsics::Readline, tokens),
+                TokenType::KWTel => Statement::arith_add(tokens),
+                TokenType::KWTrek => Statement::arith_subtract(tokens),
+                TokenType::KWVermenigvuldig => Statement::arith_multiply(tokens),
+                TokenType::KWDeel => Statement::arith_divide(tokens),
                 _ => todo!("Statement::parse < {} >", token.type_),
             }?;
 
@@ -251,5 +271,88 @@ impl Statement {
                 }
             }
         }
+    }
+
+    fn arith_add(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+        let start = tokens.unshift_expect(TokenType::KWTel)?;
+        let lhs = tokens.unshift_expect_any(&[
+            TokenType::Identifier,
+            TokenType::IntegerLiteral,
+            TokenType::FloatLiteral,
+        ])?;
+        tokens.unshift_expect(TokenType::KWBij)?;
+        let rhs = tokens.unshift_expect(TokenType::Identifier)?;
+        let end = tokens.unshift_expect(TokenType::KWOp)?;
+
+        Ok((
+            StatementType::Arithmetic(ArithmeticStatement {
+                operation: ArithmeticOp::Add,
+                lhs,
+                rhs,
+            }),
+            start.span.start..end.span.end,
+        ))
+    }
+
+    fn arith_subtract(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+        let start = tokens.unshift_expect(TokenType::KWTrek)?;
+        let lhs = tokens.unshift_expect_any(&[
+            TokenType::Identifier,
+            TokenType::IntegerLiteral,
+            TokenType::FloatLiteral,
+        ])?;
+        tokens.unshift_expect(TokenType::KWVan)?;
+        let rhs = tokens.unshift_expect(TokenType::Identifier)?;
+        let end = tokens.unshift_expect(TokenType::KWAf)?;
+
+        Ok((
+            StatementType::Arithmetic(ArithmeticStatement {
+                operation: ArithmeticOp::Subtract,
+                lhs,
+                rhs,
+            }),
+            start.span.start..end.span.end,
+        ))
+    }
+
+    fn arith_multiply(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+        let start = tokens.unshift_expect(TokenType::KWVermenigvuldig)?;
+        let lhs = tokens.unshift_expect(TokenType::Identifier)?;
+        tokens.unshift_expect(TokenType::KWMet)?;
+        let rhs = tokens.unshift_expect_any(&[
+            TokenType::Identifier,
+            TokenType::IntegerLiteral,
+            TokenType::FloatLiteral,
+        ])?;
+        let span = start.span.start..lhs.span.end;
+        Ok((
+            StatementType::Arithmetic(ArithmeticStatement {
+                operation: ArithmeticOp::Multiply,
+                lhs,
+                rhs,
+            }),
+            span,
+        ))
+    }
+
+    fn arith_divide(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+        let start = tokens.unshift_expect(TokenType::KWDeel)?;
+        let lhs = tokens.unshift_expect(TokenType::Identifier)?;
+        tokens.unshift_expect(TokenType::KWDoor)?;
+        let rhs = tokens.unshift_expect_any(&[
+            TokenType::Identifier,
+            TokenType::IntegerLiteral,
+            TokenType::FloatLiteral,
+        ])?;
+        let span = start.span.start..lhs.span.end;
+
+        Ok((
+            StatementType::Arithmetic(ArithmeticStatement {
+                operation: ArithmeticOp::Divide,
+                lhs,
+                rhs,
+            }),
+            span,
+        ))
     }
 }

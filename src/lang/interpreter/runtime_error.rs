@@ -58,6 +58,7 @@ pub(crate) enum RuntimeErrorKind {
     MismatchedType,
     NoArgumentsProvided,
     NoInputGiven,
+    DivideByZero,
     UnsupportedFunction,
     IOError,
 }
@@ -72,6 +73,7 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::MismatchedType => "Verkeerd type".to_string(),
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
             RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
+            RuntimeErrorKind::DivideByZero => "Kan niet door nul delen".to_string(),
             RuntimeErrorKind::UnsupportedFunction => "Nog niet geimplementeerd".to_string(),
             RuntimeErrorKind::IOError => "I/O Error".to_string(),
         }
