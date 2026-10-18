@@ -13,9 +13,12 @@ use crate::{
             self,
             iter::unshift::Unshift,
             lexer::token::{Token, TokenType},
-            parser::statement::{
-                ArithmeticOp, ArithmeticStatement, SpannedStatement, StatementType,
-                VariableAssignmentStatement, VariableDeclarationStatement,
+            parser::{
+                expression::literal::Literal,
+                statement::{
+                    ArithmeticOp, ArithmeticStatement, SpannedStatement, StatementType,
+                    VariableAssignmentStatement, VariableDeclarationStatement,
+                },
             },
         },
         interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
@@ -140,7 +143,8 @@ impl Interpreter<'_> {
             }
         };
 
-        self.store.set(&dst.value, result.to_string(), &dst.span)?;
+        self.store
+            .write(&dst.value, &Literal::Integer(result), &dst.span)?;
 
         Ok(())
     }
@@ -154,7 +158,7 @@ impl Interpreter<'_> {
                 .get_value()
                 .as_ref()
                 .unwrap()
-                .value
+                .to_string()
                 .parse::<usize>()
                 .unwrap()),
             TokenType::IntegerLiteral => Ok(token.value.parse::<usize>().unwrap()),

@@ -3,8 +3,15 @@ use std::ops::Range;
 use super::lexer::token::{Token, TokenType};
 use crate::lang::compiler::{CompilerError, ErrorCode, iter::unshift::Unshift};
 
+pub(crate) fn try_parse_numeric_literal(from: &String, span: Range<usize>) -> Option<Token> {
+    match parse_numeric_literal(from, span) {
+        Ok(token) => Some(token),
+        Err(_) => None,
+    }
+}
+
 pub(crate) fn parse_numeric_literal(
-    from: String,
+    from: &String,
     span: Range<usize>,
 ) -> Result<Token, CompilerError> {
     let chars = from
@@ -112,9 +119,7 @@ fn check_next_part_correct_grammar(
     span: &Range<usize>,
 ) -> Result<(), CompilerError> {
     if match cur.as_str() {
-        "een" | "één" => {
-            next.is_none() || next.is_some() && (**(next.unwrap()) == "en".to_string())
-        }
+        "één" => next.is_none() || next.is_some() && (**(next.unwrap()) == "en".to_string()),
         "twee" | "drie" => {
             next.is_none()
                 || next.is_some()
@@ -204,7 +209,6 @@ static WORD_TO_NUMBER: phf::Map<&'static str, usize> = phf::phf_map! {
   "tig" => 10,
 
   "nul" => 0,
-  "een" => 1,
   "één" => 1,
   "twee" => 2,
   "drie" => 3,
@@ -242,7 +246,7 @@ mod tests {
 
     macro_rules! assert_number_converted {
         ($literal:expr, $numerical:tt) => {
-            let lit = parse_numeric_literal(String::from($literal), 0..0);
+            let lit = parse_numeric_literal(&String::from($literal), 0..0);
 
             if lit.is_err() {
                 eprintln!("{}", format!("{:?}", lit.as_ref().err().unwrap()));

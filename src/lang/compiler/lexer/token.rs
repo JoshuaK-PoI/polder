@@ -1,5 +1,4 @@
-use std::iter::Peekable;
-
+use peekable_next::PeekableNext;
 use serde::Serialize;
 
 use crate::lang::compiler::{
@@ -8,7 +7,7 @@ use crate::lang::compiler::{
 };
 
 pub(crate) type Span = std::ops::Range<usize>;
-pub(crate) type TokenStream<'a> = Peekable<std::slice::IterMut<'a, Token>>;
+pub(crate) type TokenStream<'a> = PeekableNext<std::slice::IterMut<'a, Token>>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum TokenType {
@@ -33,16 +32,18 @@ pub enum TokenType {
     // Arithmetic KWs
     KWTel,
     KWBij,
+    KWSom,
     KWTrek,
     KWVermenigvuldig,
     KWMet,
     KWDeel,
     KWDoor,
 
-    KWArticleIndef,
-    KWArticleDefH,
     KWArticleDefD,
+    KWArticleDefH,
+    KWArticleIndef,
 
+    KWEn,
     KWConst,
 
     // Literals
@@ -71,6 +72,8 @@ pub(crate) const LITERALS: &[TokenType] = &[
     TokenType::CharLiteral,
 ];
 
+pub(crate) const ARITH_EXPR: &[TokenType] = &[TokenType::KWSom];
+
 pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "Druk" => TokenType::KWDruk,
     "af" => TokenType::KWAf,
@@ -84,6 +87,7 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "van" => TokenType::KWVan,
     "Tel" => TokenType::KWTel,
     "bij" => TokenType::KWBij,
+    "som" => TokenType::KWSom,
     "Trek" => TokenType::KWTrek,
     "Vermenigvuldig" => TokenType::KWVermenigvuldig,
     "met" => TokenType::KWMet,
@@ -92,9 +96,10 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "de" => TokenType::KWArticleDefD,
     "het" => TokenType::KWArticleDefH,
     "een" => TokenType::KWArticleIndef,
+    "en" => TokenType::KWEn,
+    "voorgoed" => TokenType::KWConst,
     "waar" => TokenType::TrueLiteral,
     "onwaar" => TokenType::FalseLiteral,
-    "voorgoed" => TokenType::KWConst,
 };
 
 impl From<TokenType> for String {
@@ -118,14 +123,16 @@ impl From<TokenType> for String {
                 TokenType::KWIn => "in",
                 TokenType::KWTel => "Tel",
                 TokenType::KWBij => "bij",
+                TokenType::KWSom => "som",
                 TokenType::KWTrek => "Trek",
                 TokenType::KWVermenigvuldig => "Vermenigvuldig",
                 TokenType::KWMet => "met",
                 TokenType::KWDeel => "Deel",
                 TokenType::KWDoor => "door",
-                TokenType::KWArticleIndef => "een",
-                TokenType::KWArticleDefH => "het",
                 TokenType::KWArticleDefD => "de",
+                TokenType::KWArticleDefH => "het",
+                TokenType::KWArticleIndef => "een",
+                TokenType::KWEn => "en",
                 TokenType::KWConst => "voorgoed",
                 TokenType::TrueLiteral => "waar",
                 TokenType::FalseLiteral => "onwaar",
@@ -221,6 +228,21 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
     fn next_matches_any(&mut self, expected: &[TokenType]) -> bool {
         match self.peek() {
             Some(token) => expected.contains(&token.type_),
+            None => false,
+        }
+    }
+
+    /// Returns true if the next 2 tokens in the stream match the expected token types provided.
+    /// The immediate next token must match a token type of the first element of the `expected` tuple,
+    /// the token after that must match a token type of the second element of the tuple.
+    fn next_and_after_matches(&mut self, expected: (&[TokenType], &[TokenType])) -> bool {
+        match self.peek() {
+            Some(token) if expected.0.contains(&token.type_) => match self.peek_next() {
+                Some(token_next) if expected.1.contains(&token_next.type_) => true,
+                Some(_) => false,
+                None => false,
+            },
+            Some(_) => false,
             None => false,
         }
     }

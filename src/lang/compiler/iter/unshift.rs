@@ -1,5 +1,7 @@
 use std::iter::Peekable;
 
+use peekable_next::PeekableNext;
+
 use crate::lang::compiler::CompilerResult;
 
 /// Allows vector elements to be taken from the front of the vector.
@@ -17,6 +19,19 @@ pub(crate) trait Unshift<T> {
     ///
     /// Returns `None` if the vector is empty.
     fn unshift(&mut self) -> Option<T>;
+}
+
+impl<T, U> Unshift<U> for PeekableNext<T>
+where
+    T: Iterator<Item = U>,
+{
+    fn unshift(&mut self) -> Option<U> {
+        if self.peek().is_none() {
+            None
+        } else {
+            self.next()
+        }
+    }
 }
 
 impl<T, U> Unshift<U> for Peekable<T>
@@ -38,4 +53,5 @@ pub(crate) trait UnshiftExpect<T, K, E> {
     fn unshift_if(&mut self, expected: K) -> Option<&mut T>;
     fn next_matches(&mut self, expected: K) -> bool;
     fn next_matches_any(&mut self, expected: &[K]) -> bool;
+    fn next_and_after_matches(&mut self, expected: (&[K], &[K])) -> bool;
 }

@@ -93,25 +93,33 @@ mod tests {
             let mut output: Vec<u8> = Vec::new();
             let mut io = Io::new(&mut input, &mut output);
 
-            Interpreter::new(
+            match Interpreter::new(
                 fs::read_to_string(&path).unwrap().as_str(),
                 file_name,
                 &program_options,
             )
             .run(&mut io)
-            .unwrap();
-            let result = String::from_utf8(output).unwrap();
-            let expected_output = fs::read_to_string(path.with_extension("uit")).unwrap();
+            {
+                Ok(_) => {
+                    let result = String::from_utf8(output).unwrap();
+                    let expected_output = fs::read_to_string(path.with_extension("uit")).unwrap();
 
-            report.push(format!("Output: {:?}", result));
-            report.push(format!("Expect: {:?}", expected_output));
+                    report.push(format!("Output: {:?}", result));
+                    report.push(format!("Expect: {:?}", expected_output));
 
-            if result != expected_output {
-                eprint!("{}", report.join("\n"));
-                assert!(false);
+                    if result != expected_output {
+                        eprint!("{}", report.join("\n"));
+                        assert!(false);
+                    }
+
+                    report.clear();
+                }
+                Err(e) => {
+                    report.push(format!("Test failed! Error: {:?}", e));
+                    eprint!("{}", report.join("\n"));
+                    assert!(false)
+                }
             }
-
-            report.clear();
         }
     }
 

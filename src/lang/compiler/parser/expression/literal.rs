@@ -1,0 +1,111 @@
+use serde::Serialize;
+
+use crate::lang::compiler::{
+    CompilerError, CompilerResult, ErrorCode,
+    iter::unshift::Unshift,
+    lexer::token::{TokenStream, TokenType},
+    parser::types::PolderType,
+};
+
+use super::{Expression, ExpressionType};
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) enum Literal {
+    String(String),
+    Integer(usize),
+    Float(f64),
+    Char(char),
+    Boolean(bool),
+}
+
+impl std::fmt::Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Literal::String(s) => s.to_string(),
+                Literal::Integer(i) => i.to_string(),
+                Literal::Float(f) => f.to_string().replace('.', ","),
+                Literal::Boolean(b) => (if *b { "waar" } else { "onwaar" }).to_string(),
+                Literal::Char(c) => c.to_string(),
+            }
+        )
+    }
+}
+
+impl Into<PolderType> for Literal {
+    fn into(self) -> PolderType {
+        match self {
+            Literal::Boolean(_) => PolderType::Boolean,
+            Literal::Char(_) => PolderType::Char,
+            Literal::Float(_) => PolderType::Float,
+            Literal::Integer(_) => PolderType::Integer,
+            Literal::String(_) => PolderType::String,
+        }
+    }
+}
+
+impl Literal {
+    pub(crate) fn get_type(&self) -> String {
+        match self {
+            Literal::String(_) => "tekst",
+            Literal::Integer(_) => "getal",
+            Literal::Float(_) => "kommagetal",
+            Literal::Boolean(_) => "waarheid",
+            Literal::Char(_) => "letter",
+        }
+        .to_string()
+    }
+}
+
+pub(super) fn literal(tokens: &mut TokenStream) -> CompilerResult<Expression> {
+    let token = tokens.unshift().unwrap();
+
+    Ok(Expression {
+        expression: match token.type_ {
+            TokenType::Identifier => ExpressionType::Identifier(token.value.clone()),
+            TokenType::StringLiteral => {
+                ExpressionType::Literal(Literal::String(token.value.replace(&['„', '”', '"'], "")))
+            }
+            TokenType::IntegerLiteral => ExpressionType::Literal(Literal::Integer(
+                token.value.parse::<usize>().map_err(|err| CompilerError {
+                    kind: ErrorCode::ParseIntError,
+                    message: format!("Could not parse value to int: {}", err),
+                    span_message: format!("Cannot parse this to int"),
+                    span: token.span.clone(),
+                })?,
+            )),
+            TokenType::FloatLiteral => ExpressionType::Literal(Literal::Float(
+                token
+                    .value
+                    .replace(',', ".")
+                    .parse::<f64>()
+                    .map_err(|err| CompilerError {
+                        kind: ErrorCode::ParseIntError,
+                        message: format!("Could not parse value to float: {}", err),
+                        span_message: format!("Cannot parse this to float"),
+                        span: token.span.clone(),
+                    })?,
+            )),
+            TokenType::TrueLiteral | TokenType::FalseLiteral => {
+                ExpressionType::Literal(Literal::Boolean(token.type_ == TokenType::TrueLiteral))
+            }
+            TokenType::CharLiteral => ExpressionType::Literal(Literal::Char(
+                token.value.parse::<char>().map_err(|err| CompilerError {
+                    kind: ErrorCode::ParseIntError,
+                    message: format!("Could not parse value to char: {}", err),
+                    span_message: format!("Cannot parse this to char"),
+                    span: token.span.clone(),
+                })?,
+            )),
+            type_ => Err(CompilerError {
+                kind: ErrorCode::InvalidExpression,
+                message: format!("Invalid expression: did not expect token of type {}", type_),
+                span_message: String::from(""),
+                span: token.span.clone(),
+            })?,
+        },
+        span: token.span.clone(),
+    })
+}

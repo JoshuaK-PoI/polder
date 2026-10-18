@@ -35,23 +35,28 @@ fn print(
     io: &mut Io,
 ) -> Result<(), RuntimeError> {
     for arg in intrinsic.args.iter() {
-        match arg.expression {
-            ExpressionType::StringExpr(ref content) => io.write(content.text.as_str())?,
-            ExpressionType::Identifier(ref content) => match store.get(&content.name) {
+        match &arg.expression {
+            ExpressionType::Literal(literal) => io.write(&literal.to_string())?,
+            ExpressionType::Identifier(ident) => match store.get(&ident) {
                 Some(variable) => match variable.get_value() {
-                    Some(value) => Ok(io.write(&value.value)?),
+                    Some(value) => Ok(io.write(&value.to_string())?),
                     None => Err(runtime_error!(
                         range.clone(),
                         RuntimeErrorKind::VariableHasNoValue,
-                        content.name
+                        ident
                     )),
                 },
                 None => Err(runtime_error!(
                     range.clone(),
                     RuntimeErrorKind::UndefinedVariable,
-                    content.name
+                    ident
                 )),
             }?,
+            type_ => Err(runtime_error!(
+                range.clone(),
+                RuntimeErrorKind::TypeNotPrintable,
+                type_
+            ))?,
         };
     }
 
@@ -69,7 +74,7 @@ fn readline(
 ) -> Result<(), RuntimeError> {
     let identifier = match intrinsic.args.get(0) {
         Some(ref expr) => match &expr.expression {
-            ExpressionType::Identifier(ident) => Ok(ident.name.clone()),
+            ExpressionType::Identifier(ident) => Ok(ident.clone()),
             other => Err(runtime_error!(
                 range.clone(),
                 RuntimeErrorKind::MismatchedType,

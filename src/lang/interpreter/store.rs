@@ -2,12 +2,10 @@ use std::{collections::HashMap, ops::Range};
 
 use crate::{
     lang::{
-        compiler::{
-            lexer::token::{Token, TokenType},
-            parser::{
-                statement::{VariableAssignmentStatement, VariableDeclarationStatement},
-                types::PolderType,
-            },
+        compiler::parser::{
+            expression::literal::Literal,
+            statement::{VariableAssignmentStatement, VariableDeclarationStatement},
+            types::PolderType,
         },
         interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
     },
@@ -21,11 +19,14 @@ pub(crate) struct Store {
 #[derive(Debug, Clone)]
 pub(crate) struct Variable {
     type_: PolderType,
+    declared_at: Range<usize>,
     identifier: String,
-    value: Option<Token>,
+    value: Option<Literal>,
     is_const: bool,
 }
 
+/// @TODO: Check where this is used
+///
 impl From<&Variable> for String {
     fn from(variable: &Variable) -> Self {
         format!(
@@ -33,10 +34,9 @@ impl From<&Variable> for String {
             if variable.is_const { "(const) " } else { "" },
             variable.type_,
             variable.identifier,
-            if variable.value.is_some() {
-                format!("\"{}\"", variable.value.as_ref().unwrap())
-            } else {
-                String::from("<uninitialized>")
+            match &variable.value {
+                Some(v) => format!("\"{}\"", v),
+                None => String::from("<uninitialized>"),
             },
         )
     }
@@ -68,7 +68,7 @@ impl Store {
             ));
         }
 
-        self.check_type_compatible(&variable, None)?;
+        self.check_type_compatible(&variable, None, range)?;
 
         self.variables.insert(variable.identifier.clone(), variable);
         Ok(())
@@ -85,7 +85,7 @@ impl Store {
     pub(crate) fn write(
         &mut self,
         identifier: &String,
-        value: &Token,
+        value: &Literal,
         range: &Range<usize>,
     ) -> Result<(), RuntimeError> {
         if !self.variable_defined(identifier) {
@@ -100,8 +100,8 @@ impl Store {
             .get(&identifier)
             .expect("unreachable (already checked existence");
 
-        self.check_const(variable)?;
-        self.check_type_compatible(variable, Some(value))?;
+        self.check_const(variable, range)?;
+        self.check_type_compatible(variable, Some(value), range)?;
 
         self.variables
             .entry(identifier.clone())
@@ -128,18 +128,14 @@ impl Store {
             ));
         }
 
-        self.check_const(self.get(identifier).expect("unreachable"))?;
-        let (token_type, token_value) = self.try_marshalling_type(identifier, input)?;
+        self.check_const(self.get(identifier).expect("unreachable"), range)?;
+        let literal = self.try_marshalling_type(identifier, input)?;
 
         self.variables
             .entry(identifier.clone())
             .and_modify(|variable| {
                 if variable.value.is_none() {
-                    variable.value = Some(Token {
-                        type_: token_type,
-                        value: token_value,
-                        span: 0..0,
-                    })
+                    variable.value = Some(literal);
                 } else {
                     todo!("Typecheck and fill existing variable")
                 }
@@ -155,7 +151,8 @@ impl Store {
     fn check_type_compatible(
         &self,
         variable: &Variable,
-        input: Option<&Token>,
+        input: Option<&Literal>,
+        range: &Range<usize>,
     ) -> Result<(), RuntimeError> {
         let value_to_type_check = input.or(variable.value.as_ref());
         match value_to_type_check {
@@ -163,25 +160,24 @@ impl Store {
             // expect later in the program to handle empty value cases
             None => Ok(()),
             Some(ref value) => {
-                if match variable.type_ {
-                    PolderType::Boolean => {
-                        [TokenType::TrueLiteral, TokenType::FalseLiteral].contains(&value.type_)
-                    }
-                    PolderType::Char => value.type_ == TokenType::CharLiteral,
-                    PolderType::String => value.type_ == TokenType::StringLiteral,
-                    PolderType::Integer => value.type_ == TokenType::IntegerLiteral,
-                    PolderType::Float => value.type_ == TokenType::FloatLiteral,
-                    PolderType::MaybeInteger => value.type_ == TokenType::IntegerLiteral,
+                if match value {
+                    Literal::Boolean(_) => variable.type_ == PolderType::Boolean,
+                    Literal::Char(_) => variable.type_ == PolderType::Char,
+                    Literal::String(_) => variable.type_ == PolderType::String,
+                    Literal::Integer(_) => variable.type_ == PolderType::Integer,
+                    Literal::Float(_) => variable.type_ == PolderType::Float,
                 } {
                     Ok(())
                 } else {
                     Err(runtime_error!(
-                        value.span.clone(),
+                        range.clone(),
                         RuntimeErrorKind::MismatchedType,
                         "",
                         format!(
                             "{} is een {}, geen {}",
-                            variable.identifier, variable.type_, value.type_
+                            variable.identifier,
+                            variable.type_,
+                            value.get_type()
                         )
                     ))
                 }
@@ -189,16 +185,16 @@ impl Store {
         }
     }
 
-    fn check_const(&self, variable: &Variable) -> Result<(), RuntimeError> {
+    fn check_const(&self, variable: &Variable, range: &Range<usize>) -> Result<(), RuntimeError> {
         if variable.is_const {
             Err(runtime_error!(
-                variable.value.as_ref().unwrap().span.clone(), // @TODO: Check - this might fail if the const value is undefined - we don't safeguard against that yet
+                range.clone(),
                 RuntimeErrorKind::VariableIsConst,
                 variable.identifier,
                 format!(
                     "{} is voorgoed {}",
                     variable.identifier,
-                    variable.get_value().as_ref().unwrap().value
+                    variable.get_value().as_ref().unwrap()
                 )
             ))
         } else {
@@ -210,7 +206,7 @@ impl Store {
         &self,
         identifier: &String,
         input: &String,
-    ) -> Result<(TokenType, String), RuntimeError> {
+    ) -> Result<Literal, RuntimeError> {
         let variable_type = &self
             .get(identifier)
             .expect("try_marshalling_type: attempted to get undefined variable")
@@ -218,124 +214,63 @@ impl Store {
 
         match variable_type {
             PolderType::Boolean => try_bool(input),
-            PolderType::String => Ok((TokenType::StringLiteral, input.clone())),
+            PolderType::String => Ok(Literal::String(input.clone())),
             PolderType::Integer => try_integer(input),
-            PolderType::MaybeInteger => Err(runtime_error!(
-                0..0,
-                RuntimeErrorKind::UnsupportedFunction,
-                identifier,
-                String::from("Marshalling MaybeInteger is not supported")
-            )),
             PolderType::Float => try_float(input),
             PolderType::Char => try_char(input),
         }
     }
-
-    pub(crate) fn set(
-        &mut self,
-        identifier: &String,
-        value: String,
-        range: &Range<usize>,
-    ) -> Result<(), RuntimeError> {
-        if !self.variable_defined(identifier) {
-            return Err(runtime_error!(
-                range.clone(),
-                RuntimeErrorKind::UndefinedVariable,
-                identifier
-            ));
-        }
-
-        let variable = self
-            .get(&identifier)
-            .expect("unreachable (already checked existence");
-
-        self.check_const(variable)?;
-
-        self.variables
-            .entry(identifier.clone())
-            .and_modify(|variable| variable.value.as_mut().unwrap().value = value.clone());
-
-        Ok(())
-    }
 }
 
-fn try_bool(input: &String) -> Result<(TokenType, String), RuntimeError> {
-    if input == "waar" {
-        Ok((TokenType::TrueLiteral, input.clone()))
-    } else if input == "onwaar" {
-        Ok((TokenType::FalseLiteral, input.clone()))
-    } else {
-        Err(runtime_error!(
+fn try_bool(input: &String) -> Result<Literal, RuntimeError> {
+    match input.as_str() {
+        "waar" => Ok(Literal::Boolean(true)),
+        "onwaar" => Ok(Literal::Boolean(false)),
+        _ => Err(runtime_error!(
             0..0,
             RuntimeErrorKind::MismatchedType,
             input,
             String::from("Verwachtte 'waar' of 'onwaar' hier")
-        ))
+        )),
     }
 }
 
 // @TODO: Deduplicate this code in future, has overlap with lexer
 // @TODO: Runtime errors below should not point to source file in the below cases because they are coming from stdin
 // @TODO: Runtime errors below should not abort the program but read from stdin again
-fn try_integer(input: &String) -> Result<(TokenType, String), RuntimeError> {
-    if input.chars().all(|c| c.is_ascii_digit()) {
-        Ok((TokenType::IntegerLiteral, input.clone()))
-    } else {
-        Err(runtime_error!(
+fn try_integer(input: &String) -> Result<Literal, RuntimeError> {
+    match input.parse::<usize>() {
+        Ok(int) => Ok(Literal::Integer(int)),
+        Err(_) => Err(runtime_error!(
             0..0,
             RuntimeErrorKind::MismatchedType,
             input,
             String::from("Verwachtte een getal hier")
-        ))
+        )),
     }
 }
 
-fn try_float(input: &String) -> Result<(TokenType, String), RuntimeError> {
-    if try_integer(input).is_ok() {
-        Ok((TokenType::FloatLiteral, input.clone()))
-    } else {
-        let mut iter = input.chars().into_iter();
-        let mut comma_seen = false;
-        while let Some(c) = iter.next() {
-            if c.is_ascii_digit() {
-                continue;
-            }
-
-            if c == ',' {
-                if comma_seen {
-                    return Err(runtime_error!(
-                        0..0,
-                        RuntimeErrorKind::MismatchedType,
-                        input,
-                        String::from("Meer dan 1 komma in het kommagetal gevonden")
-                    ));
-                }
-                comma_seen = true;
-                continue;
-            }
-
-            return Err(runtime_error!(
-                0..0,
-                RuntimeErrorKind::MismatchedType,
-                input,
-                String::from("Ongeldig karakter in het kommagetal")
-            ));
-        }
-
-        Ok((TokenType::FloatLiteral, input.clone()))
+fn try_float(input: &String) -> Result<Literal, RuntimeError> {
+    match input.replace(',', ".").parse::<f64>() {
+        Ok(flt) => Ok(Literal::Float(flt)),
+        Err(_) => Err(runtime_error!(
+            0..0,
+            RuntimeErrorKind::MismatchedType,
+            input,
+            String::from("Ongeldig karakter in het kommagetal")
+        )),
     }
 }
 
-fn try_char(input: &String) -> Result<(TokenType, String), RuntimeError> {
-    if input.trim().len() != 1 {
-        Err(runtime_error!(
+fn try_char(input: &String) -> Result<Literal, RuntimeError> {
+    match input.parse::<char>() {
+        Ok(c) => Ok(Literal::Char(c)),
+        Err(_) => Err(runtime_error!(
             0..0,
             RuntimeErrorKind::MismatchedType,
             input,
             String::from("Verwachtte een enkel karakter hier")
-        ))
-    } else {
-        Ok((TokenType::CharLiteral, input.clone()))
+        )),
     }
 }
 
@@ -346,12 +281,13 @@ impl From<&VariableDeclarationStatement> for Variable {
             identifier: declaration.identifier.clone(),
             value: declaration.value_literal.clone(),
             is_const: declaration.is_const,
+            declared_at: declaration.span.clone(),
         }
     }
 }
 
 impl Variable {
-    pub(crate) fn get_value(&self) -> &Option<Token> {
+    pub(crate) fn get_value(&self) -> &Option<Literal> {
         &self.value
     }
 }

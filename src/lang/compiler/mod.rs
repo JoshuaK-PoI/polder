@@ -9,6 +9,7 @@ use std::ops::Range;
 use crate::logger::PolderError;
 use lexer::{Lexer, token::TokenType};
 use parser::AST;
+use peekable_next::PeekNext;
 
 #[derive(Debug)]
 pub(crate) struct CompilerError {
@@ -45,6 +46,7 @@ pub(crate) enum ErrorCode {
     UnexpectedCharacter,
     ConstDeclarationMustHaveValue,
     InvalidIdentifier,
+    ParseIntError,
 }
 
 impl From<ErrorCode> for String {
@@ -61,5 +63,5 @@ impl std::fmt::Display for ErrorCode {
 
 pub(crate) fn compile(input: &str) -> Result<AST, CompilerError> {
     let mut tokens = Lexer::lex(input)?;
-    parser::parse(&mut tokens.iter_mut().peekable())
+    parser::parse(&mut tokens.iter_mut().peekable_next())
 }

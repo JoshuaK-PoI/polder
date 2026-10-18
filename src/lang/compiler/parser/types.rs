@@ -1,9 +1,11 @@
+use std::ops::Range;
+
 use serde::Serialize;
 
 use super::super::{
     CompilerError, ErrorCode,
     iter::unshift::UnshiftExpect,
-    lexer::token::{ARTICLES, Token, TokenStream, TokenType},
+    lexer::token::{TokenStream, TokenType},
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
@@ -11,7 +13,6 @@ pub(crate) enum PolderType {
     Boolean,
     String,
     Integer,
-    MaybeInteger,
     Float,
     Char,
 }
@@ -37,7 +38,6 @@ impl From<&PolderType> for String {
                 PolderType::Boolean => "waarheid",
                 PolderType::String => "tekst",
                 PolderType::Integer => "getal",
-                PolderType::MaybeInteger => "getal",
                 PolderType::Float => "kommagetal",
                 PolderType::Char => "karakter",
             }
@@ -51,11 +51,9 @@ impl std::fmt::Display for PolderType {
     }
 }
 
-pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, CompilerError> {
-    if !tokens.next_matches_any(ARTICLES) {
-        return PolderType::infer(tokens.peek().unwrap());
-    }
-
+pub(crate) fn parse_type(
+    tokens: &mut TokenStream,
+) -> Result<(PolderType, Range<usize>), CompilerError> {
     let article = tokens.unshift_expect_any(&[
         TokenType::KWArticleDefD,
         TokenType::KWArticleDefH,
@@ -74,7 +72,10 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, Compile
                     span: article.span.clone(),
                 })
             } else {
-                Ok(PolderType::from(typedecl.value))
+                Ok((
+                    PolderType::from(typedecl.value),
+                    article.span.start..typedecl.span.end,
+                ))
             }
         }
         "waarheid" | "tekst" | "letter" => {
@@ -86,7 +87,10 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, Compile
                     span: article.span.clone(),
                 })
             } else {
-                Ok(PolderType::from(typedecl.value))
+                Ok((
+                    PolderType::from(typedecl.value),
+                    article.span.start..typedecl.span.end,
+                ))
             }
         }
         _ => Err(CompilerError {
@@ -99,30 +103,10 @@ pub(crate) fn parse_type(tokens: &mut TokenStream) -> Result<PolderType, Compile
 }
 
 impl PolderType {
-    pub(crate) fn infer(token: &Token) -> Result<Self, CompilerError> {
-        match token.type_ {
-            TokenType::TrueLiteral => Ok(PolderType::Boolean),
-            TokenType::FalseLiteral => Ok(PolderType::Boolean),
-            TokenType::StringLiteral => Ok(PolderType::String),
-            TokenType::IntegerLiteral => Ok(PolderType::Integer),
-            TokenType::FloatLiteral => Ok(PolderType::Float),
-            TokenType::CharLiteral => Ok(PolderType::Char),
-            TokenType::Identifier => Ok(PolderType::MaybeInteger),
-            _ => Err(CompilerError {
-                kind: ErrorCode::CannotInferVariableType,
-                message: format!("'{}' is geen type", token.type_),
-                span_message: format!("'{}' is geen bekend type.", token.value),
-                span: token.span.clone(),
-            }),
-        }
-    }
-
     pub(crate) fn article_for(type_: &Self) -> TokenType {
         match type_ {
             PolderType::Boolean | PolderType::Char | PolderType::String => TokenType::KWArticleDefD,
-            PolderType::Integer | PolderType::MaybeInteger | PolderType::Float => {
-                TokenType::KWArticleDefH
-            }
+            PolderType::Integer | PolderType::Float => TokenType::KWArticleDefH,
         }
     }
 }

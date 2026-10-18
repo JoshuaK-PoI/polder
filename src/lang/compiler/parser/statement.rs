@@ -1,19 +1,18 @@
 use serde::Serialize;
+use std::ops::Range;
 
-use crate::lang::compiler::lexer::token::{KEYWORDS, Token};
+use crate::lang::compiler::{
+    lexer::token::{KEYWORDS, Token},
+    parser::expression::{ExpressionType, literal::Literal},
+};
 
 use super::super::{
     CompilerError, CompilerResult, ErrorCode,
     iter::unshift::{Unshift, UnshiftExpect},
-    lexer::token::{LITERALS, Span, TokenStream, TokenType},
-    numeric_literal::parse_numeric_literal,
+    lexer::token::{Span, TokenStream, TokenType},
 };
 
-use super::{
-    expression::Expression,
-    intrinsic::Intrinsics,
-    types::{PolderType, parse_type},
-};
+use super::{expression::Expression, intrinsic::Intrinsics, types::PolderType};
 
 pub(crate) type SpannedStatement = (StatementType, Span);
 
@@ -39,24 +38,25 @@ impl std::fmt::Display for StatementType {
 
 pub(crate) struct Statement {}
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct IntrinsicStatement {
     pub(crate) intrinsic: Intrinsics,
     pub(crate) args: Vec<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: String,
     pub(crate) variable_type: PolderType,
-    pub(crate) value_literal: Option<Token>,
+    pub(crate) value_literal: Option<Literal>,
     pub(crate) is_const: bool,
+    pub(crate) span: Range<usize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct VariableAssignmentStatement {
     pub(crate) identifier: String,
-    pub(crate) value: Token,
+    pub(crate) value: Literal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -113,15 +113,25 @@ impl Statement {
         let start = tokens.unshift_expect(TokenType::KWMaak)?;
         tokens.unshift_expect(TokenType::KWVan)?;
         let identifier = tokens.unshift_expect(TokenType::Identifier)?;
-        let value = tokens.unshift_expect_any(LITERALS)?;
-        let end = value.span.end;
+        let (value, span) = match Expression::parse(tokens) {
+            Ok(expr) => match expr.expression {
+                ExpressionType::Literal(lit) => Ok((lit, expr.span)),
+                _other => Err(CompilerError {
+                    kind: ErrorCode::InvalidExpression,
+                    message: "Verwachtte een literal hier".to_string(),
+                    span_message: "Verwachtte een literal hier".to_string(),
+                    span: expr.span,
+                }),
+            },
+            Err(e) => Err(e),
+        }?;
 
         Ok((
             StatementType::VariableAssignment(VariableAssignmentStatement {
                 identifier: identifier.value,
                 value: value,
             }),
-            start.span.start..end,
+            start.span.start..span.end,
         ))
     }
 
@@ -143,78 +153,103 @@ impl Statement {
             });
         }
 
-        let type_ = parse_type(tokens)?;
+        let expr = Expression::parse(tokens)?;
 
-        if is_indefinite_article {
-            if is_const {
-                return Err(CompilerError {
-                    kind: ErrorCode::ConstDeclarationMustHaveValue,
-                    message: format!("Geen waarde toegewezen aan constante."),
-                    span_message: format!("Een constante variabele heeft een waarde nodig."),
-                    span: identifier.span.clone(),
-                });
+        let result_expression = match expr.expression {
+            ExpressionType::Arithmetic(ar) => todo!("Handle arithmetic declaration {:?}", ar),
+            ExpressionType::Literal(lit) => {
+                let end = tokens.unshift_expect(TokenType::KWZijn)?;
+                Ok((
+                    StatementType::VariableDeclaration(VariableDeclarationStatement {
+                        identifier: identifier.value,
+                        variable_type: lit.clone().into(),
+                        value_literal: Some(lit),
+                        is_const,
+                        span: start.span.start..end.span.end,
+                    }),
+                    start.span.start..end.span.end,
+                ))
             }
+            ExpressionType::Type(type_) => {
+                if is_indefinite_article {
+                    if is_const {
+                        return Err(CompilerError {
+                            kind: ErrorCode::ConstDeclarationMustHaveValue,
+                            message: format!("Geen waarde toegewezen aan constante."),
+                            span_message: format!(
+                                "Een constante variabele heeft een waarde nodig."
+                            ),
+                            span: identifier.span.clone(),
+                        });
+                    }
 
-            if !tokens.next_matches(TokenType::KWZijn) {
-                let token = tokens.unshift();
-                return Err(CompilerError {
-                    kind: ErrorCode::IndefiniteCannotHaveValue,
-                    message: format!("'een {}' kan geen waarde hebben", type_),
-                    span_message: format!(
-                        "Gebruik '{} {}' als je een waarde opgeeft.",
-                        PolderType::article_for(&type_),
-                        type_
-                    ),
-                    span: if token.is_some() {
-                        identifier.span.start..token.unwrap().span.end
-                    } else {
-                        identifier.span.clone()
+                    if !tokens.next_matches(TokenType::KWZijn) {
+                        let token = tokens.unshift();
+                        return Err(CompilerError {
+                            kind: ErrorCode::IndefiniteCannotHaveValue,
+                            message: format!("'een {}' kan geen waarde hebben", type_),
+                            span_message: format!(
+                                "Gebruik '{} {}' als je een waarde opgeeft.",
+                                PolderType::article_for(&type_),
+                                type_
+                            ),
+                            span: if token.is_some() {
+                                identifier.span.start..token.unwrap().span.end
+                            } else {
+                                identifier.span.clone()
+                            },
+                        });
+                    }
+
+                    let end = tokens.unshift_expect(TokenType::KWZijn)?;
+                    return Ok((
+                        StatementType::VariableDeclaration(VariableDeclarationStatement {
+                            identifier: identifier.value,
+                            variable_type: type_,
+                            value_literal: None,
+                            is_const,
+                            span: start.span.start..end.span.end,
+                        }),
+                        start.span.start..end.span.end,
+                    ));
+                }
+
+                let value = match Expression::parse(tokens) {
+                    Ok(expr) => match expr.expression {
+                        ExpressionType::Literal(lit) => Ok(lit),
+                        other_type => Err(CompilerError {
+                            kind: ErrorCode::InvalidExpression,
+                            message: format!(
+                                "Verwachtte een literal expression maar zag een {}",
+                                other_type
+                            ),
+                            span_message: "Verwachtte een literal expression".to_string(),
+                            span: expr.span,
+                        }),
                     },
-                });
+                    Err(e) => Err(e),
+                }?;
+
+                let end = tokens.unshift_expect(TokenType::KWZijn)?;
+                Ok((
+                    StatementType::VariableDeclaration(VariableDeclarationStatement {
+                        identifier: identifier.value,
+                        variable_type: type_,
+                        value_literal: Some(value),
+                        is_const,
+                        span: start.span.start..end.span.end,
+                    }),
+                    start.span.start..end.span.end,
+                ))
             }
-
-            let end = tokens.unshift_expect(TokenType::KWZijn)?;
-            return Ok((
-                StatementType::VariableDeclaration(VariableDeclarationStatement {
-                    identifier: identifier.value,
-                    variable_type: type_,
-                    value_literal: None,
-                    is_const,
-                }),
-                start.span.start..end.span.end,
-            ));
-        }
-
-        let mut value = tokens.unshift_expect_any(LITERALS);
-
-        if value.is_err() {
-            // We might be parsing a number literal
-            // Check we have the numeric type set
-            // Otherwise return the error immediately
-            if ![PolderType::Integer, PolderType::MaybeInteger].contains(&type_) {
-                return Err(value.err().unwrap());
-            }
-
-            let token = tokens.unshift_expect(TokenType::Identifier)?;
-            value = parse_numeric_literal(token.value, token.span);
-
-            // If we then still can't parse it, it is probably invalid
-            if value.is_err() {
-                return Err(value.err().unwrap());
-            }
-        }
-
-        let end = tokens.unshift_expect(TokenType::KWZijn)?;
-
-        Ok((
-            StatementType::VariableDeclaration(VariableDeclarationStatement {
-                identifier: identifier.value,
-                variable_type: type_,
-                value_literal: Some(value.unwrap()),
-                is_const,
+            _expression => Err(CompilerError {
+                kind: ErrorCode::IndefiniteCannotHaveValue,
+                message: format!("Verwachtte een type hier"),
+                span_message: format!("Verwachtte een type hier"),
+                span: expr.span.clone(),
             }),
-            start.span.start..end.span.end,
-        ))
+        }?;
+        Ok(result_expression)
     }
 
     pub fn intrinsic(

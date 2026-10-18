@@ -6,7 +6,7 @@ use log::trace;
 use peekable_next::{PeekNext, PeekableNext};
 use token::{KEYWORDS, Token, TokenType};
 
-use crate::lang::compiler::{CompilerError, ErrorCode};
+use crate::lang::compiler::{CompilerError, ErrorCode, numeric_literal::try_parse_numeric_literal};
 
 macro_rules! make_token {
     ($type_:ident, $value:expr, $span:expr) => {
@@ -139,6 +139,10 @@ impl<'a> Lexer<'a> {
     ) -> Result<Option<Token>, CompilerError> {
         let str = self.continue_while(c, |c| c.is_alphanumeric() || *c == '_');
         let ident = str.into_iter().collect::<String>();
+        if let Some(number_word) = try_parse_numeric_literal(&ident, start_position..self.position)
+        {
+            return Ok(Some(number_word));
+        }
         if let Some(keyword) = KEYWORDS.get(ident.as_str()) {
             Ok(Some(Token {
                 type_: *keyword,

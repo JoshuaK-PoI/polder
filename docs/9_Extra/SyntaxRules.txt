@@ -1,0 +1,52 @@
+
+
+VariableDeclarationStatement := LAAT ( Identifier ) ( Expr ) ZIJN FULLSTOP;
+
+( Expr ) :=
+		| ( ArithExpr )
+		| ( TypeDeclExpr )
+		| ( LiteralExpr )
+		;
+
+( ArithExpr ) := ( Article ) ( ArithOp ) VAN ( VarOrNumber ) EN ( VarOrNumber )
+( TypeDeclExpr ) := ( Article ) ( Type ) ( LiteralExpr )?;
+
+( LiteralExpr ) :=
+		| ( StringLiteral )
+		| ( IntegerLiteral )
+		| ( IntegerWord )
+		| ( FloatLiteral )
+		| ( CharLiteral )
+		| TRUE
+		| FALSE
+		;
+
+( StringLiteral ) := ( OpenQuote )[([^( CloseQuote )])*]( CloseQuote );
+( IntegerLiteral ) := [0-9]+;
+( IntegerWord ) = [a-z].*; /* IntegerWord is codified as the full text representation in Dutch of a number. In the tokenization it is marked as an IntegerLiteral. */
+( FloatLiteral ) := [0-9]+ COMMA [0-9]+;
+( CharLiteral ) := QUOTE [([^QUOTE])] QUOTE; /* Any valid UTF8-character */
+
+( VarOrNumber ) :=
+	| ( Identifier )
+	| ( IntegerLiteral )
+	| ( FloatLiteral )
+	;
+
+( Identifier ) := [a-zA-Z][a-zA-Z0-9_]*;
+
+( Article ) := 'de' | 'het' | 'een';
+( Type ) := 'getal' | 'kommagetal' | 'tekst' | 'waarheid' | 'letter';
+( ArithOp ) := 'som' | 'verschil' | 'product' | 'quotiënt';
+( OpenQuote ) := '"' | '“' | '„';
+( CloseQuote ) := '"' | '”';
+
+LAAT := 'Laat';
+ZIJN := 'Zijn';
+VAN := 'van';
+EN := 'en';
+TRUE := 'waar';
+FALSE := 'onwaar';
+FULLSTOP := '.';
+COMMA := ',';
+QUOTE := '\'';
