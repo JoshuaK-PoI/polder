@@ -60,7 +60,6 @@ pub(crate) enum RuntimeErrorKind {
     NoInputGiven,
     DivideByZero,
     TypeNotPrintable,
-    UnsupportedFunction,
     IOError,
 }
 

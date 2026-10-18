@@ -3,7 +3,7 @@ use std::{collections::HashMap, ops::Range};
 use crate::{
     lang::{
         compiler::parser::{
-            expression::literal::Literal,
+            expression::{Expression, literal::Literal},
             statement::{VariableAssignmentStatement, VariableDeclarationStatement},
             types::PolderType,
         },
@@ -21,7 +21,7 @@ pub(crate) struct Variable {
     type_: PolderType,
     declared_at: Range<usize>,
     identifier: String,
-    value: Option<Literal>,
+    value: Option<Expression>,
     is_const: bool,
 }
 
@@ -279,7 +279,7 @@ impl From<&VariableDeclarationStatement> for Variable {
         Variable {
             type_: declaration.variable_type.clone(),
             identifier: declaration.identifier.clone(),
-            value: declaration.value_literal.clone(),
+            expression: declaration.value_expression.clone(),
             is_const: declaration.is_const,
             declared_at: declaration.span.clone(),
         }

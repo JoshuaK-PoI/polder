@@ -48,7 +48,7 @@ pub(crate) struct IntrinsicStatement {
 pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: String,
     pub(crate) variable_type: PolderType,
-    pub(crate) value_literal: Option<Literal>,
+    pub(crate) value_expression: Option<Expression>,
     pub(crate) is_const: bool,
     pub(crate) span: Range<usize>,
 }
@@ -157,13 +157,13 @@ impl Statement {
 
         let result_expression = match expr.expression {
             ExpressionType::Arithmetic(ar) => todo!("Handle arithmetic declaration {:?}", ar),
-            ExpressionType::Literal(lit) => {
+            ExpressionType::Literal(ref lit) => {
                 let end = tokens.unshift_expect(TokenType::KWZijn)?;
                 Ok((
                     StatementType::VariableDeclaration(VariableDeclarationStatement {
                         identifier: identifier.value,
                         variable_type: lit.clone().into(),
-                        value_literal: Some(lit),
+                        value_expression: Some(expr),
                         is_const,
                         span: start.span.start..end.span.end,
                     }),
@@ -206,7 +206,7 @@ impl Statement {
                         StatementType::VariableDeclaration(VariableDeclarationStatement {
                             identifier: identifier.value,
                             variable_type: type_,
-                            value_literal: None,
+                            value_expression: None,
                             is_const,
                             span: start.span.start..end.span.end,
                         }),
@@ -216,7 +216,7 @@ impl Statement {
 
                 let value = match Expression::parse(tokens) {
                     Ok(expr) => match expr.expression {
-                        ExpressionType::Literal(lit) => Ok(lit),
+                        ExpressionType::Literal(_) => Ok(expr),
                         other_type => Err(CompilerError {
                             kind: ErrorCode::InvalidExpression,
                             message: format!(
@@ -235,7 +235,7 @@ impl Statement {
                     StatementType::VariableDeclaration(VariableDeclarationStatement {
                         identifier: identifier.value,
                         variable_type: type_,
-                        value_literal: Some(value),
+                        value_expression: Some(value),
                         is_const,
                         span: start.span.start..end.span.end,
                     }),

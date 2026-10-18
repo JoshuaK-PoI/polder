@@ -1,15 +1,17 @@
+pub(crate) mod arithmetic;
 pub(crate) mod literal;
 
 use crate::lang::compiler::{
     CompilerResult,
     iter::unshift::{Unshift, UnshiftExpect},
-    lexer::token::{LITERALS, Span, TokenStream, TokenType},
+    lexer::token::{ARITH_EXPR, ARTICLES, LITERALS, Span, TokenStream, TokenType},
     parser::{
         statement::ArithmeticOp,
         types::{PolderType, parse_type},
     },
 };
 
+use arithmetic::arithmetic;
 use literal::{Literal, literal};
 use serde::Serialize;
 
@@ -55,7 +57,11 @@ impl Expression {
     }
 
     fn arithmetic(tokens: &mut TokenStream) -> CompilerResult<Expression> {
-        Ok(Expression::type_declaration(tokens)?)
+        if tokens.next_and_after_matches((ARTICLES, ARITH_EXPR)) {
+            arithmetic(tokens)
+        } else {
+            Ok(Expression::type_declaration(tokens)?)
+        }
     }
 
     fn type_declaration(tokens: &mut TokenStream) -> CompilerResult<Expression> {
