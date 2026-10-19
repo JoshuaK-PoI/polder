@@ -321,15 +321,13 @@ impl Statement {
         tokens.unshift_expect(TokenType::KWBij)?;
         let rhs = tokens.unshift_expect(TokenType::Identifier)?;
         let end = tokens.unshift_expect(TokenType::KWOp)?;
-        let expression_span = lhs.span.clone();
-
+        
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Add,
             rhs,
             lhs,
             end.span.end,
-            expression_span,
         ))
     }
 
@@ -339,15 +337,13 @@ impl Statement {
         tokens.unshift_expect(TokenType::KWVan)?;
         let rhs = tokens.unshift_expect(TokenType::Identifier)?;
         let end = tokens.unshift_expect(TokenType::KWAf)?;
-        let expression_span = lhs.span.clone();
-
+        
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Subtract,
             rhs,
             lhs,
             end.span.end,
-            expression_span,
         ))
     }
 
@@ -357,15 +353,13 @@ impl Statement {
         tokens.unshift_expect(TokenType::KWMet)?;
         let rhs = Expression::parse(tokens)?;
         let end = rhs.span.end;
-        let expression_span = lhs.span.start..rhs.span.end;
-
+        
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Multiply,
             lhs,
             rhs,
             end,
-            expression_span,
         ))
     }
 
@@ -375,15 +369,13 @@ impl Statement {
         tokens.unshift_expect(TokenType::KWDoor)?;
         let rhs = Expression::parse(tokens)?;
         let end = rhs.span.end;
-        let expression_span = rhs.span.clone();
-
+        
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Divide,
             lhs,
             rhs,
             end,
-            expression_span,
         ))
     }
 
@@ -444,24 +436,24 @@ fn variable_assignment_unary(
 fn variable_assignment_binary(
     start: Token,
     op: BinaryOp,
-    lhs: Token,
-    rhs: Expression,
+    target: Token,
+    expr: Expression,
     end: usize,
-    expression_span: Range<usize>,
 ) -> (StatementType, Range<usize>) {
+    let span = expr.span.clone();
     (
         StatementType::VariableAssignment(VariableAssignmentStatement {
-            identifier: lhs.value.clone(),
+            identifier: target.value.clone(),
             expression: Expression {
                 expression: ExpressionType::Binary(BinaryExpression {
                     op,
                     lhs: Box::new(Expression {
-                        expression: ExpressionType::Identifier(lhs.value),
-                        span: lhs.span.clone(),
+                        expression: ExpressionType::Identifier(target.value),
+                        span: target.span.clone(),
                     }),
-                    rhs: Box::new(rhs),
+                    rhs: Box::new(expr),
                 }),
-                span: expression_span,
+                span,
             },
         }),
         start.span.start..end,

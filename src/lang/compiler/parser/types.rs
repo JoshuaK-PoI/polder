@@ -102,6 +102,14 @@ pub(crate) fn parse_type(
     }
 }
 
+pub(crate) fn is_correct_article(article: &TokenType, token_type: &TokenType) -> bool {
+    match token_type {
+        TokenType::KWSom => *article == TokenType::KWArticleDefD,
+        TokenType::KWVerschil | TokenType::KWProduct | TokenType::KWQuotient => *article == TokenType::KWArticleDefH,
+        _ => unimplemented!()
+    }
+}
+
 impl PolderType {
     pub(crate) fn article_for(type_: &Self) -> TokenType {
         match type_ {

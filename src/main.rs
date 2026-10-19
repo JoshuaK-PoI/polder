@@ -4,6 +4,7 @@ use std::{
 };
 
 use clap::Parser;
+use log::debug;
 
 use crate::{io::Io, lang::interpreter::Interpreter, logger::ErrorLogger};
 
@@ -44,14 +45,18 @@ fn main() {
 
     Interpreter::new(&input, &args.input, &program_options)
         .run(&mut io)
-        .unwrap_or_else(|err| ErrorLogger::new(&input, &args.input).report(&err));
+        .unwrap_or_else(|err| {
+            debug!(" [ Error ] : {}", serde_json::to_string_pretty(&err).unwrap());
+            ErrorLogger::new(&input, &args.input).report(&err)
+        });
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{io::Io, lang::interpreter::Interpreter, logger, program_options::ProgramOptions};
     use log;
-    use std::sync::Once;
+    use std::fs::DirEntry;
+use std::sync::Once;
     use std::{fs, path::Path};
 
     static INIT: Once = Once::new();
@@ -64,10 +69,27 @@ mod tests {
     }
 
     #[test]
-    fn test_happy_path() {
+    fn end_to_end_tests() {
+        initialize();
+        let test_case_master_dir = Path::new("tests/cases");
+
+        for dir in fs::read_dir(test_case_master_dir)
+            .unwrap()
+            .filter(|res| {
+                res.as_ref()
+                    .is_ok_and(|entry| entry.metadata().is_ok_and(|r| r.is_dir()))
+            })
+            .map(|res| res.unwrap())
+        {
+            test_happy_path(&dir);
+            test_errors(&dir);
+        }
+    }
+
+    fn test_happy_path(dir: &DirEntry) {
         initialize();
         let program_options = ProgramOptions { print_ast: false };
-        let test_dir = Path::new("tests/cases/variabelen/voorbeelden");
+        let test_dir = dir.path().join("voorbeelden");
         let mut test_files = fs::read_dir(test_dir)
             .unwrap()
             .map(|f| f.unwrap())
@@ -123,13 +145,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_errors() {
+    fn test_errors(dir: &DirEntry) {
         initialize();
         let program_options = ProgramOptions { print_ast: false };
 
-        let test_dir = Path::new("tests/cases/variabelen/fouten");
-        let mut test_files = fs::read_dir(test_dir)
+        let test_dir = dir.path().join("fouten");
+        let mut test_files = fs::read_dir(&test_dir)
             .unwrap()
             .map(|f| f.unwrap())
             .filter(|f| f.path().extension().unwrap().eq_ignore_ascii_case("pol"))
@@ -144,7 +165,7 @@ mod tests {
             let path = file.path();
             let file_name = path.file_name().unwrap().to_str().unwrap();
 
-            report.push(format!("Testing file: {}", file_name));
+            report.push(format!("Testing file: {}", test_dir.join(file_name).to_str().unwrap()));
             report.push(format!("{:-<1$}", "", 40));
             let input_str =
                 fs::read_to_string(path.with_extension("in")).unwrap_or_else(|_| String::new());
@@ -171,7 +192,7 @@ mod tests {
                     assert!(false);
                 }
             })
-            .expect_err(format!("Expected failure on {}, but passed", file_name).as_str());
+            .expect_err(format!("Expected failure on {}, but passed", test_dir.join(file_name).to_str().unwrap()).as_str());
 
             report.clear();
         }

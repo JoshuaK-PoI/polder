@@ -183,8 +183,14 @@ impl Interpreter<'_> {
         if ![PolderType::Integer, PolderType::Float].contains(&(&lhs).into())
             || ![PolderType::Integer, PolderType::Float].contains(&(&rhs).into())
         {
+            let span = if expression.lhs.span.start > expression.rhs.span.end {
+                expression.rhs.span.start..expression.lhs.span.end
+            } else {
+                expression.lhs.span.start..expression.rhs.span.end
+            };
+
             return Err(runtime_error!(
-                expression.lhs.span.start..expression.rhs.span.end,
+                span,
                 RuntimeErrorKind::CannotCalculateNonNumeric
             ));
         }
@@ -249,11 +255,10 @@ impl Interpreter<'_> {
                         identifier
                     ));
                 }
-                
+
                 let value = intrinsic::readline(span, io)?;
                 self.store.write_input(&identifier, &value, span)?;
                 Ok(())
-                
             }
         }
     }

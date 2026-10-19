@@ -165,7 +165,7 @@ impl From<TokenType> for String {
                 TokenType::IntegerLiteral => "getal",
                 TokenType::FloatLiteral => "kommagetal",
                 TokenType::CharLiteral => "karakter",
-                TokenType::Identifier => "indentificatie",
+                TokenType::Identifier => "identificatie",
             }
         )
     }

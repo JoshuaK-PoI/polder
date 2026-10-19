@@ -51,8 +51,8 @@ impl std::fmt::Display for ExpressionType {
             f,
             "{}",
             match self {
-                ExpressionType::Binary(_) => "Unary".to_string(),
-                ExpressionType::Unary(_) => "Binary".to_string(),
+                ExpressionType::Binary(_) => "Binary".to_string(),
+                ExpressionType::Unary(_) => "Unary".to_string(),
                 ExpressionType::Literal(_) => "Literal".to_string(),
                 ExpressionType::Identifier(_) => "Identifier".to_string(),
                 ExpressionType::Type(_) => "Type".to_string(),

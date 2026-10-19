@@ -1,17 +1,26 @@
 use crate::lang::compiler::{
-    CompilerResult,
+    CompilerError, CompilerResult, ErrorCode,
     iter::unshift::UnshiftExpect,
     lexer::token::{ARITH_EXPR, ARTICLES, TokenStream, TokenType},
     parser::{
         expression::{BinaryExpression, Expression, ExpressionType::Binary},
         statement::BinaryOp,
+        types::is_correct_article,
     },
 };
 
 pub(super) fn binary(tokens: &mut TokenStream) -> CompilerResult<Expression> {
     let article = tokens.unshift_expect_any(ARTICLES)?;
     let operator = tokens.unshift_expect_any(ARITH_EXPR)?;
-
+    if !is_correct_article(&article.type_, &operator.type_) {
+        return Err(CompilerError {
+            kind: ErrorCode::WrongArticleForType,
+            message: format!("Lekker genederlandst"),
+            span_message: format!("Dat is geen correct Nederlands"),
+            span: article.span.clone(),
+        });
+    }
+    
     tokens.unshift_expect(TokenType::KWVan)?;
 
     let lhs = Expression::parse(tokens)?;
