@@ -55,6 +55,10 @@ Een aantal voorbeelden van het maken van variabelen, met een vergelijking in C-s
 | `auto naam = "Jan";`           | `Laat naam "Jan" zijn.`                      |
 | `const string taal = "Polder"` | `Laat taal voorgoed de tekst "Polder" zijn.` |
 
+## Expressies
+
+Het maken van variabelen kan met een vaste waarde zoals hierboven beschreven, maar het is ook mogelijk om een expressie te gebruiken. Daarmee kun je de waarde van een variabele af laten hangen van een andere variabele, of een berekening (zie bijvoorbeeld [Rekenen](1_3%20Rekenen.md)).
+
 ## Toewijzen
 
 Variabelen die niet constant zijn, kunnen op een later moment opnieuw worden toegewezen met `Maak van ...`:
@@ -124,4 +128,4 @@ Druk d af. ==> 888888
 
 - P.S.: Alleen getallen die aan elkaar geschreven zijn worden momenteel ondersteund. Een getal als `drie miljoen` wordt nog niet ondersteund.
 
-- P.S.: Kommagetallen kunnen worden opgegeven met een rond getal, of een getalwoord (alhoewel in dat geval alleen hele getallen worden ondersteund. `drie komma veertien` wordt nog niet ondersteund).
+- P.S.: Kommagetallen kunnen ook worden opgegeven met een rond getal, of een getalwoord (alhoewel in dat geval alleen hele getallen worden ondersteund. `drie komma veertien` wordt nog niet ondersteund).
