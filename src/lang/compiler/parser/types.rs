@@ -8,7 +8,7 @@ use super::super::{
     lexer::token::{TokenStream, TokenType},
 };
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize)]
 pub(crate) enum PolderType {
     Boolean,
     String,

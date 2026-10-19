@@ -3,7 +3,9 @@ use std::ops::Range;
 
 use crate::lang::compiler::{
     lexer::token::{KEYWORDS, Token},
-    parser::expression::{ExpressionType, literal::Literal},
+    parser::expression::{
+        BinaryExpression, ExpressionType, UnaryExpression
+    },
 };
 
 use super::super::{
@@ -21,7 +23,6 @@ pub(crate) enum StatementType {
     VariableDeclaration(VariableDeclarationStatement),
     VariableAssignment(VariableAssignmentStatement),
     Intrinsic(IntrinsicStatement),
-    Arithmetic(ArithmeticStatement),
 }
 
 impl From<&StatementType> for String {
@@ -47,8 +48,7 @@ pub(crate) struct IntrinsicStatement {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: String,
-    pub(crate) variable_type: PolderType,
-    pub(crate) value_expression: Option<Expression>,
+    pub(crate) value_expression: Expression,
     pub(crate) is_const: bool,
     pub(crate) span: Range<usize>,
 }
@@ -56,11 +56,11 @@ pub(crate) struct VariableDeclarationStatement {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct VariableAssignmentStatement {
     pub(crate) identifier: String,
-    pub(crate) value: Literal,
+    pub(crate) expression: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) enum ArithmeticOp {
+pub(crate) enum BinaryOp {
     Add,
     Subtract,
     Multiply,
@@ -68,10 +68,9 @@ pub(crate) enum ArithmeticOp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct ArithmeticStatement {
-    pub(crate) operation: ArithmeticOp,
-    pub(crate) lhs: Token,
-    pub(crate) rhs: Token,
+pub(crate) enum UnaryOp {
+    Increment,
+    Decrement,
 }
 
 impl Statement {
@@ -87,6 +86,8 @@ impl Statement {
                 TokenType::KWTrek => Statement::arith_subtract(tokens),
                 TokenType::KWVermenigvuldig => Statement::arith_multiply(tokens),
                 TokenType::KWDeel => Statement::arith_divide(tokens),
+                TokenType::KWVerhoog => Statement::arith_increment(tokens),
+                TokenType::KWVerlaag => Statement::arith_decrement(tokens),
                 _ => todo!("Statement::parse < {} >", token.type_),
             }?;
 
@@ -112,26 +113,16 @@ impl Statement {
     pub fn variable_assignment(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
         let start = tokens.unshift_expect(TokenType::KWMaak)?;
         tokens.unshift_expect(TokenType::KWVan)?;
-        let identifier = tokens.unshift_expect(TokenType::Identifier)?;
-        let (value, span) = match Expression::parse(tokens) {
-            Ok(expr) => match expr.expression {
-                ExpressionType::Literal(lit) => Ok((lit, expr.span)),
-                _other => Err(CompilerError {
-                    kind: ErrorCode::InvalidExpression,
-                    message: "Verwachtte een literal hier".to_string(),
-                    span_message: "Verwachtte een literal hier".to_string(),
-                    span: expr.span,
-                }),
-            },
-            Err(e) => Err(e),
-        }?;
+        let identifier = tokens.unshift_expect(TokenType::Identifier)?.value;
+        let expression = Expression::parse(tokens)?;
+        let end = expression.span.end;
 
         Ok((
             StatementType::VariableAssignment(VariableAssignmentStatement {
-                identifier: identifier.value,
-                value: value,
+                identifier,
+                expression,
             }),
-            start.span.start..span.end,
+            start.span.start..end,
         ))
     }
 
@@ -156,14 +147,12 @@ impl Statement {
         let expr = Expression::parse(tokens)?;
 
         let result_expression = match expr.expression {
-            ExpressionType::Arithmetic(ar) => todo!("Handle arithmetic declaration {:?}", ar),
-            ExpressionType::Literal(ref lit) => {
+            ExpressionType::Binary(_) | ExpressionType::Literal(_) => {
                 let end = tokens.unshift_expect(TokenType::KWZijn)?;
                 Ok((
                     StatementType::VariableDeclaration(VariableDeclarationStatement {
                         identifier: identifier.value,
-                        variable_type: lit.clone().into(),
-                        value_expression: Some(expr),
+                        value_expression: expr,
                         is_const,
                         span: start.span.start..end.span.end,
                     }),
@@ -205,8 +194,7 @@ impl Statement {
                     return Ok((
                         StatementType::VariableDeclaration(VariableDeclarationStatement {
                             identifier: identifier.value,
-                            variable_type: type_,
-                            value_expression: None,
+                            value_expression: expr,
                             is_const,
                             span: start.span.start..end.span.end,
                         }),
@@ -216,7 +204,27 @@ impl Statement {
 
                 let value = match Expression::parse(tokens) {
                     Ok(expr) => match expr.expression {
-                        ExpressionType::Literal(_) => Ok(expr),
+                        ExpressionType::Literal(ref lit) => {
+                            if type_ != Into::<PolderType>::into(lit) {
+                                Err(CompilerError {
+                                    kind: ErrorCode::InvalidTypeDeclaration,
+                                    message: format!(
+                                        "Een {} kan niet worden toegewezen aan een {}",
+                                        Into::<PolderType>::into(lit),
+                                        type_,
+                                    ),
+                                    span_message: format!(
+                                        "Ik verwachtte hier een {}, maar {} is een {}.",
+                                        type_,
+                                        identifier.value,
+                                        Into::<PolderType>::into(lit)
+                                    ),
+                                    span: expr.span,
+                                })
+                            } else {
+                                Ok(expr)
+                            }
+                        }
                         other_type => Err(CompilerError {
                             kind: ErrorCode::InvalidExpression,
                             message: format!(
@@ -234,8 +242,7 @@ impl Statement {
                 Ok((
                     StatementType::VariableDeclaration(VariableDeclarationStatement {
                         identifier: identifier.value,
-                        variable_type: type_,
-                        value_expression: Some(value),
+                        value_expression: value,
                         is_const,
                         span: start.span.start..end.span.end,
                     }),
@@ -310,43 +317,37 @@ impl Statement {
 
     fn arith_add(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
         let start = tokens.unshift_expect(TokenType::KWTel)?;
-        let lhs = tokens.unshift_expect_any(&[
-            TokenType::Identifier,
-            TokenType::IntegerLiteral,
-            TokenType::FloatLiteral,
-        ])?;
+        let lhs = Expression::parse(tokens)?;
         tokens.unshift_expect(TokenType::KWBij)?;
         let rhs = tokens.unshift_expect(TokenType::Identifier)?;
         let end = tokens.unshift_expect(TokenType::KWOp)?;
+        let expression_span = lhs.span.clone();
 
-        Ok((
-            StatementType::Arithmetic(ArithmeticStatement {
-                operation: ArithmeticOp::Add,
-                lhs,
-                rhs,
-            }),
-            start.span.start..end.span.end,
+        Ok(variable_assignment_binary(
+            start,
+            BinaryOp::Add,
+            rhs,
+            lhs,
+            end.span.end,
+            expression_span,
         ))
     }
 
     fn arith_subtract(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
         let start = tokens.unshift_expect(TokenType::KWTrek)?;
-        let lhs = tokens.unshift_expect_any(&[
-            TokenType::Identifier,
-            TokenType::IntegerLiteral,
-            TokenType::FloatLiteral,
-        ])?;
+        let lhs = Expression::parse(tokens)?;
         tokens.unshift_expect(TokenType::KWVan)?;
         let rhs = tokens.unshift_expect(TokenType::Identifier)?;
         let end = tokens.unshift_expect(TokenType::KWAf)?;
+        let expression_span = lhs.span.clone();
 
-        Ok((
-            StatementType::Arithmetic(ArithmeticStatement {
-                operation: ArithmeticOp::Subtract,
-                lhs,
-                rhs,
-            }),
-            start.span.start..end.span.end,
+        Ok(variable_assignment_binary(
+            start,
+            BinaryOp::Subtract,
+            rhs,
+            lhs,
+            end.span.end,
+            expression_span,
         ))
     }
 
@@ -354,19 +355,17 @@ impl Statement {
         let start = tokens.unshift_expect(TokenType::KWVermenigvuldig)?;
         let lhs = tokens.unshift_expect(TokenType::Identifier)?;
         tokens.unshift_expect(TokenType::KWMet)?;
-        let rhs = tokens.unshift_expect_any(&[
-            TokenType::Identifier,
-            TokenType::IntegerLiteral,
-            TokenType::FloatLiteral,
-        ])?;
-        let span = start.span.start..lhs.span.end;
-        Ok((
-            StatementType::Arithmetic(ArithmeticStatement {
-                operation: ArithmeticOp::Multiply,
-                lhs,
-                rhs,
-            }),
-            span,
+        let rhs = Expression::parse(tokens)?;
+        let end = rhs.span.end;
+        let expression_span = lhs.span.start..rhs.span.end;
+
+        Ok(variable_assignment_binary(
+            start,
+            BinaryOp::Multiply,
+            lhs,
+            rhs,
+            end,
+            expression_span,
         ))
     }
 
@@ -374,20 +373,97 @@ impl Statement {
         let start = tokens.unshift_expect(TokenType::KWDeel)?;
         let lhs = tokens.unshift_expect(TokenType::Identifier)?;
         tokens.unshift_expect(TokenType::KWDoor)?;
-        let rhs = tokens.unshift_expect_any(&[
-            TokenType::Identifier,
-            TokenType::IntegerLiteral,
-            TokenType::FloatLiteral,
-        ])?;
-        let span = start.span.start..lhs.span.end;
+        let rhs = Expression::parse(tokens)?;
+        let end = rhs.span.end;
+        let expression_span = rhs.span.clone();
 
-        Ok((
-            StatementType::Arithmetic(ArithmeticStatement {
-                operation: ArithmeticOp::Divide,
-                lhs,
-                rhs,
-            }),
-            span,
+        Ok(variable_assignment_binary(
+            start,
+            BinaryOp::Divide,
+            lhs,
+            rhs,
+            end,
+            expression_span,
         ))
     }
+
+    fn arith_increment(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+        let start = tokens.unshift_expect(TokenType::KWVerhoog)?;
+        let ident = tokens.unshift_expect(TokenType::Identifier)?;
+        let ident_expr = Expression::make(
+            ExpressionType::Identifier(ident.value.clone()),
+            ident.span.clone(),
+        );
+        Ok(variable_assignment_unary(
+            start,
+            UnaryOp::Increment,
+            ident,
+            ident_expr,
+        ))
+    }
+
+    fn arith_decrement(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+        let start = tokens.unshift_expect(TokenType::KWVerlaag)?;
+        let ident = tokens.unshift_expect(TokenType::Identifier)?;
+        let ident_expr = Expression::make(
+            ExpressionType::Identifier(ident.value.clone()),
+            ident.span.clone(),
+        );
+        Ok(variable_assignment_unary(
+            start,
+            UnaryOp::Decrement,
+            ident,
+            ident_expr,
+        ))
+    }
+}
+
+fn variable_assignment_unary(
+    start: Token,
+    op: UnaryOp,
+    identifier: Token,
+    expr: Expression,
+) -> (StatementType, Range<usize>) {
+    let span = start.span.start..expr.span.end;
+
+    (
+        StatementType::VariableAssignment(VariableAssignmentStatement {
+            identifier: identifier.value,
+            expression: Expression {
+                expression: ExpressionType::Unary(UnaryExpression {
+                    op,
+                    expr: Box::new(expr),
+                }),
+                span: span.clone(),
+            },
+        }),
+        span,
+    )
+}
+
+fn variable_assignment_binary(
+    start: Token,
+    op: BinaryOp,
+    lhs: Token,
+    rhs: Expression,
+    end: usize,
+    expression_span: Range<usize>,
+) -> (StatementType, Range<usize>) {
+    (
+        StatementType::VariableAssignment(VariableAssignmentStatement {
+            identifier: lhs.value.clone(),
+            expression: Expression {
+                expression: ExpressionType::Binary(BinaryExpression {
+                    op,
+                    lhs: Box::new(Expression {
+                        expression: ExpressionType::Identifier(lhs.value),
+                        span: lhs.span.clone(),
+                    }),
+                    rhs: Box::new(rhs),
+                }),
+                span: expression_span,
+            },
+        }),
+        start.span.start..end,
+    )
 }

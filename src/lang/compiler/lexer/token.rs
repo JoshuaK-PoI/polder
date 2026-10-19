@@ -34,10 +34,15 @@ pub enum TokenType {
     KWBij,
     KWSom,
     KWTrek,
+    KWVerschil,
     KWVermenigvuldig,
     KWMet,
+    KWProduct,
     KWDeel,
     KWDoor,
+    KWQuotient,
+    KWVerhoog,
+    KWVerlaag,
 
     KWArticleDefD,
     KWArticleDefH,
@@ -57,6 +62,11 @@ pub enum TokenType {
     Identifier,
 }
 
+pub(crate) const UNARY_OPERATORS: &[TokenType] = &[
+    TokenType::KWVerhoog,
+    TokenType::KWVerlaag,
+];
+
 pub(crate) const ARTICLES: &[TokenType] = &[
     TokenType::KWArticleIndef,
     TokenType::KWArticleDefH,
@@ -72,7 +82,12 @@ pub(crate) const LITERALS: &[TokenType] = &[
     TokenType::CharLiteral,
 ];
 
-pub(crate) const ARITH_EXPR: &[TokenType] = &[TokenType::KWSom];
+pub(crate) const ARITH_EXPR: &[TokenType] = &[
+    TokenType::KWSom,
+    TokenType::KWVerschil,
+    TokenType::KWProduct,
+    TokenType::KWQuotient,
+];
 
 pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "Druk" => TokenType::KWDruk,
@@ -89,10 +104,15 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "bij" => TokenType::KWBij,
     "som" => TokenType::KWSom,
     "Trek" => TokenType::KWTrek,
+    "verschil" => TokenType::KWVerschil,
     "Vermenigvuldig" => TokenType::KWVermenigvuldig,
     "met" => TokenType::KWMet,
+    "product" => TokenType::KWProduct,
     "Deel" => TokenType::KWDeel,
     "door" => TokenType::KWDoor,
+    "quotiënt" => TokenType::KWQuotient,
+    "Verhoog" => TokenType::KWVerhoog,
+    "Verlaag" => TokenType::KWVerlaag,
     "de" => TokenType::KWArticleDefD,
     "het" => TokenType::KWArticleDefH,
     "een" => TokenType::KWArticleIndef,
@@ -125,10 +145,15 @@ impl From<TokenType> for String {
                 TokenType::KWBij => "bij",
                 TokenType::KWSom => "som",
                 TokenType::KWTrek => "Trek",
+                TokenType::KWVerschil => "verschil",
                 TokenType::KWVermenigvuldig => "Vermenigvuldig",
                 TokenType::KWMet => "met",
+                TokenType::KWProduct => "product",
                 TokenType::KWDeel => "Deel",
                 TokenType::KWDoor => "door",
+                TokenType::KWQuotient => "quotiënt",
+                TokenType::KWVerhoog => "Verhoog",
+                TokenType::KWVerlaag => "Verlaag",
                 TokenType::KWArticleDefD => "de",
                 TokenType::KWArticleDefH => "het",
                 TokenType::KWArticleIndef => "een",

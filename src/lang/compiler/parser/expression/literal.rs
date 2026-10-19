@@ -12,10 +12,89 @@ use super::{Expression, ExpressionType};
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) enum Literal {
     String(String),
-    Integer(usize),
+    Integer(i64),
     Float(f64),
     Char(char),
     Boolean(bool),
+}
+
+impl std::ops::Add for Literal {
+    type Output = Literal;
+    fn add(self, rhs: Self) -> Self::Output {
+        match self {
+            Literal::Integer(int) => match rhs {
+                Literal::Integer(rhs_int) => Literal::Integer(int + rhs_int),
+                Literal::Float(rhs_flt) => Literal::Float(int as f64 + rhs_flt),
+                _ => todo!(),
+            },
+            Literal::Float(flt) => match rhs {
+                Literal::Float(rhs_flt) => Literal::Float(flt + rhs_flt),
+                Literal::Integer(rhs_int) => Literal::Float(flt + rhs_int as f64),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
+}
+
+impl std::ops::Sub for Literal {
+    type Output = Literal;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match self {
+            Literal::Integer(int) => match rhs {
+                Literal::Integer(rhs_int) => Literal::Integer(int - rhs_int),
+                Literal::Float(rhs_flt) => Literal::Float(int as f64 - rhs_flt),
+                _ => todo!(),
+            },
+            Literal::Float(flt) => match rhs {
+                Literal::Float(rhs_flt) => Literal::Float(flt - rhs_flt),
+                Literal::Integer(rhs_int) => Literal::Float(flt - rhs_int as f64),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
+}
+
+impl std::ops::Mul for Literal {
+    type Output = Literal;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match self {
+            Literal::Integer(int) => match rhs {
+                Literal::Integer(rhs_int) => Literal::Integer(int * rhs_int),
+                Literal::Float(rhs_flt) => Literal::Float(int as f64 * rhs_flt),
+                _ => todo!(),
+            },
+            Literal::Float(flt) => match rhs {
+                Literal::Float(rhs_flt) => Literal::Float(flt * rhs_flt),
+                Literal::Integer(rhs_int) => Literal::Float(flt * rhs_int as f64),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
+}
+
+impl std::ops::Div for Literal {
+    type Output = Literal;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match self {
+            Literal::Integer(int) => match rhs {
+                Literal::Integer(rhs_int) => Literal::Integer(int / rhs_int),
+                Literal::Float(rhs_flt) => Literal::Float(int as f64 / rhs_flt),
+                _ => todo!(),
+            },
+            Literal::Float(flt) => match rhs {
+                Literal::Float(rhs_flt) => Literal::Float(flt / rhs_flt),
+                Literal::Integer(rhs_int) => Literal::Float(flt / rhs_int as f64),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
 }
 
 impl std::fmt::Display for Literal {
@@ -34,7 +113,7 @@ impl std::fmt::Display for Literal {
     }
 }
 
-impl Into<PolderType> for Literal {
+impl Into<PolderType> for &Literal {
     fn into(self) -> PolderType {
         match self {
             Literal::Boolean(_) => PolderType::Boolean,
@@ -69,7 +148,7 @@ pub(super) fn literal(tokens: &mut TokenStream) -> CompilerResult<Expression> {
                 ExpressionType::Literal(Literal::String(token.value.replace(&['„', '”', '"'], "")))
             }
             TokenType::IntegerLiteral => ExpressionType::Literal(Literal::Integer(
-                token.value.parse::<usize>().map_err(|err| CompilerError {
+                token.value.parse::<i64>().map_err(|err| CompilerError {
                     kind: ErrorCode::ParseIntError,
                     message: format!("Could not parse value to int: {}", err),
                     span_message: format!("Cannot parse this to int"),

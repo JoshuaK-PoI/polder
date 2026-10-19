@@ -59,7 +59,9 @@ pub(crate) enum RuntimeErrorKind {
     NoArgumentsProvided,
     NoInputGiven,
     DivideByZero,
+    CannotCalculateNonNumeric,
     TypeNotPrintable,
+    UnsupportedFunction,
     IOError,
 }
 
@@ -74,8 +76,9 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
             RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
             RuntimeErrorKind::DivideByZero => "Kan niet door nul delen".to_string(),
+            RuntimeErrorKind::CannotCalculateNonNumeric => "Rekenen kan alleen met getallen of kommagetallen".to_string(),
             RuntimeErrorKind::TypeNotPrintable => "kan niet worden afgedrukt".to_string(),
-            RuntimeErrorKind::UnsupportedFunction => "Nog niet geimplementeerd".to_string(),
+            RuntimeErrorKind::UnsupportedFunction => "Functie (nog) niet ondersteund".to_string(),
             RuntimeErrorKind::IOError => "I/O Error".to_string(),
         }
     }

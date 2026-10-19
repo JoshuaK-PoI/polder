@@ -1,1 +1,1 @@
-{"message":" Verkeerd type","span_message":"pi is een getal, geen kommagetal","span":{"start":0,"end":27}}
+{"message":"Een kommagetal kan niet worden toegewezen aan een getal","span_message":"Ik verwachtte hier een getal, maar pi is een kommagetal.","span":{"start":18,"end":22}}
