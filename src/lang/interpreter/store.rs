@@ -2,11 +2,7 @@ use std::{collections::HashMap, ops::Range};
 
 use crate::{
     lang::{
-        compiler::parser::{
-            expression::literal::Literal,
-            statement::{VariableAssignmentStatement, VariableDeclarationStatement},
-            types::PolderType,
-        },
+        compiler::parser::{expression::literal::Literal, types::PolderType},
         interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
     },
     runtime_error,
@@ -18,11 +14,11 @@ pub(crate) struct Store {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Variable {
-    type_: PolderType,
-    declared_at: Range<usize>,
-    identifier: String,
-    value: Option<Literal>,
-    is_const: bool,
+    pub(crate) declared_at: Range<usize>,
+    pub(crate) identifier: String,
+    pub(crate) type_: PolderType,
+    pub(crate) value: Option<Literal>,
+    pub(crate) is_const: bool,
 }
 
 /// @TODO: Check where this is used
@@ -30,7 +26,7 @@ pub(crate) struct Variable {
 impl From<&Variable> for String {
     fn from(variable: &Variable) -> Self {
         format!(
-            "<{}{}> {} {:<16.16}",
+            "<{} {}> {} {:<16.16}",
             if variable.is_const { "(const) " } else { "" },
             variable.type_,
             variable.identifier,
@@ -72,14 +68,6 @@ impl Store {
 
         self.variables.insert(variable.identifier.clone(), variable);
         Ok(())
-    }
-
-    pub(crate) fn update(
-        &mut self,
-        assignment: &VariableAssignmentStatement,
-        range: &Range<usize>,
-    ) -> Result<(), RuntimeError> {
-        self.write(&assignment.identifier, &assignment.value, range)
     }
 
     pub(crate) fn write(
@@ -207,12 +195,12 @@ impl Store {
         identifier: &String,
         input: &String,
     ) -> Result<Literal, RuntimeError> {
-        let variable_type = &self
+        let type_ = &self
             .get(identifier)
             .expect("try_marshalling_type: attempted to get undefined variable")
             .type_;
 
-        match variable_type {
+        match type_ {
             PolderType::Boolean => try_bool(input),
             PolderType::String => Ok(Literal::String(input.clone())),
             PolderType::Integer => try_integer(input),
@@ -239,7 +227,7 @@ fn try_bool(input: &String) -> Result<Literal, RuntimeError> {
 // @TODO: Runtime errors below should not point to source file in the below cases because they are coming from stdin
 // @TODO: Runtime errors below should not abort the program but read from stdin again
 fn try_integer(input: &String) -> Result<Literal, RuntimeError> {
-    match input.parse::<usize>() {
+    match input.parse::<i64>() {
         Ok(int) => Ok(Literal::Integer(int)),
         Err(_) => Err(runtime_error!(
             0..0,
@@ -271,18 +259,6 @@ fn try_char(input: &String) -> Result<Literal, RuntimeError> {
             input,
             String::from("Verwachtte een enkel karakter hier")
         )),
-    }
-}
-
-impl From<&VariableDeclarationStatement> for Variable {
-    fn from(declaration: &VariableDeclarationStatement) -> Variable {
-        Variable {
-            type_: declaration.variable_type.clone(),
-            identifier: declaration.identifier.clone(),
-            value: declaration.value_literal.clone(),
-            is_const: declaration.is_const,
-            declared_at: declaration.span.clone(),
-        }
     }
 }
 

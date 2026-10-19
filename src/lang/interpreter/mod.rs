@@ -12,16 +12,21 @@ use crate::{
         compiler::{
             self,
             iter::unshift::Unshift,
-            lexer::token::{Token, TokenType},
             parser::{
-                expression::literal::Literal,
+                expression::{
+                    BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
+                },
                 statement::{
-                    ArithmeticOp, ArithmeticStatement, SpannedStatement, StatementType,
+                    BinaryOp, SpannedStatement, StatementType, UnaryOp,
                     VariableAssignmentStatement, VariableDeclarationStatement,
                 },
+                types::PolderType,
             },
         },
-        interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
+        interpreter::{
+            runtime_error::{RuntimeError, RuntimeErrorKind},
+            store::Variable,
+        },
     },
     logger::PolderError,
     program_options::ProgramOptions,
@@ -92,7 +97,6 @@ impl Interpreter<'_> {
             StatementType::Intrinsic(ref intrinsic) => {
                 intrinsic::interpret(intrinsic, &stmt.1, &mut self.store, io)
             }
-            StatementType::Arithmetic(ref arith_op) => self.interpret_arithmetic(arith_op, &stmt.1),
         }
     }
 
@@ -101,7 +105,24 @@ impl Interpreter<'_> {
         declaration: &VariableDeclarationStatement,
         range: &Range<usize>,
     ) -> Result<(), RuntimeError> {
-        self.store.declare(declaration.into(), range)?;
+        let (expression, expression_type) = match &declaration.value_expression.expression {
+            ExpressionType::Type(type_) => (None, type_.to_owned()),
+            _expr => {
+                let expr_result = self.interpret_expression(&declaration.value_expression)?;
+                let expression_result_type: PolderType = (&expr_result).into();
+                (Some(expr_result), expression_result_type)
+            }
+        };
+
+        let variable = Variable {
+            declared_at: declaration.span.clone(),
+            identifier: declaration.identifier.clone(),
+            value: expression,
+            type_: expression_type,
+            is_const: declaration.is_const,
+        };
+
+        self.store.declare(variable, range)?;
         Ok(())
     }
 
@@ -110,63 +131,102 @@ impl Interpreter<'_> {
         assignment: &VariableAssignmentStatement,
         range: &Range<usize>,
     ) -> Result<(), RuntimeError> {
-        self.store.update(assignment, range)?;
-        Ok(())
-    }
-
-    fn interpret_arithmetic(
-        &mut self,
-        arith_op: &ArithmeticStatement,
-        _span: &Range<usize>,
-    ) -> Result<(), RuntimeError> {
-        let dst = if [ArithmeticOp::Add, ArithmeticOp::Subtract].contains(&arith_op.operation) {
-            &arith_op.rhs
-        } else {
-            &arith_op.lhs
-        };
-
-        let left = self.value_as_number(&arith_op.lhs)?;
-        let right = self.value_as_number(&arith_op.rhs)?;
-
-        let result = match arith_op.operation {
-            ArithmeticOp::Add => right + left,
-            ArithmeticOp::Subtract => right - left,
-            ArithmeticOp::Multiply => left * right,
-            ArithmeticOp::Divide => {
-                if right == 0 {
-                    return Err(runtime_error!(
-                        arith_op.rhs.span.clone(),
-                        RuntimeErrorKind::DivideByZero
-                    ));
-                }
-                left / right
-            }
-        };
-
+        let expression = self.interpret_expression(&assignment.expression)?;
         self.store
-            .write(&dst.value, &Literal::Integer(result), &dst.span)?;
-
+            .write(&assignment.identifier, &expression, range)?;
         Ok(())
     }
 
-    fn value_as_number(&mut self, token: &Token) -> Result<usize, RuntimeError> {
-        match token.type_ {
-            TokenType::Identifier => Ok(self
-                .store
-                .get(&token.value)
-                .unwrap()
-                .get_value()
-                .as_ref()
-                .unwrap()
-                .to_string()
-                .parse::<usize>()
-                .unwrap()),
-            TokenType::IntegerLiteral => Ok(token.value.parse::<usize>().unwrap()),
-            TokenType::FloatLiteral => todo!(),
+    fn interpret_expression<'a>(
+        &'a self,
+        expression: &'a Expression,
+    ) -> Result<Literal, RuntimeError> {
+        match &expression.expression {
+            ExpressionType::Literal(lit) => Ok(lit.clone()),
+            ExpressionType::Unary(un) => self.interpret_unary_expression(un),
+            ExpressionType::Binary(bin) => self.interpret_binary_expression(bin),
+            ExpressionType::Identifier(ident) => self.get_from_store(ident, &expression.span),
             _ => Err(runtime_error!(
-                token.span.clone(),
-                RuntimeErrorKind::MismatchedType,
-                format!("Verwachtte een getal, maar vond '{}'", token.type_)
+                expression.span.clone(),
+                RuntimeErrorKind::UnsupportedFunction
+            )),
+        }
+    }
+
+    fn interpret_unary_expression(
+        &self,
+        expression: &UnaryExpression,
+    ) -> Result<Literal, RuntimeError> {
+        let expr = self.interpret_expression(&expression.expr)?;
+
+        if ![PolderType::Integer, PolderType::Float].contains(&(&expr).into()) {
+            return Err(runtime_error!(
+                expression.expr.span.clone(),
+                RuntimeErrorKind::CannotCalculateNonNumeric
+            ));
+        }
+
+        match expression.op {
+            UnaryOp::Increment => Ok(expr + Literal::Integer(1)),
+            UnaryOp::Decrement => Ok(expr - Literal::Integer(1)),
+        }
+    }
+
+    fn interpret_binary_expression(
+        &self,
+        expression: &BinaryExpression,
+    ) -> Result<Literal, RuntimeError> {
+        let lhs = self.interpret_expression(&expression.lhs)?;
+        let rhs = self.interpret_expression(&expression.rhs)?;
+
+        if ![PolderType::Integer, PolderType::Float].contains(&(&lhs).into())
+            || ![PolderType::Integer, PolderType::Float].contains(&(&rhs).into())
+        {
+            return Err(runtime_error!(
+                expression.lhs.span.start..expression.rhs.span.end,
+                RuntimeErrorKind::CannotCalculateNonNumeric
+            ));
+        }
+
+        match expression.op {
+            BinaryOp::Add => Ok(lhs + rhs),
+            BinaryOp::Subtract => Ok(lhs - rhs),
+            BinaryOp::Multiply => Ok(lhs * rhs),
+            BinaryOp::Divide => {
+                if match rhs {
+                    Literal::Integer(int) => int == 0,
+                    Literal::Float(flt) => flt == 0f64,
+                    _ => unreachable!(),
+                } {
+                    Err(runtime_error!(
+                        expression.rhs.span.clone(),
+                        RuntimeErrorKind::DivideByZero
+                    ))
+                } else {
+                    Ok(lhs / rhs)
+                }
+            }
+        }
+    }
+
+    fn get_from_store(
+        &self,
+        variable_identifier: &String,
+        span: &Range<usize>,
+    ) -> Result<Literal, RuntimeError> {
+        match self.store.get(variable_identifier) {
+            Some(variable) => match variable.get_value() {
+                Some(value) => Ok(value.clone()),
+                None => Err(runtime_error!(
+                    span.clone(),
+                    RuntimeErrorKind::VariableHasNoValue,
+                    variable_identifier
+                )),
+            },
+            None => Err(runtime_error!(
+                span.clone(),
+                RuntimeErrorKind::UndefinedVariable,
+                variable_identifier
             )),
         }
     }
