@@ -21,29 +21,6 @@ pub(crate) struct Variable {
     pub(crate) is_const: bool,
 }
 
-/// @TODO: Check where this is used
-///
-impl From<&Variable> for String {
-    fn from(variable: &Variable) -> Self {
-        format!(
-            "<{} {}> {} {:<16.16}",
-            if variable.is_const { "(const) " } else { "" },
-            variable.type_,
-            variable.identifier,
-            match &variable.value {
-                Some(v) => format!("\"{}\"", v),
-                None => String::from("<uninitialized>"),
-            },
-        )
-    }
-}
-
-impl std::fmt::Display for Variable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", String::from(self))
-    }
-}
-
 impl Store {
     pub(crate) fn new() -> Store {
         Store {
@@ -102,7 +79,7 @@ impl Store {
         self.variables.get(identifier)
     }
 
-    pub(crate) fn write_unchecked(
+    pub(crate) fn write_input(
         &mut self,
         identifier: &String,
         input: &String,

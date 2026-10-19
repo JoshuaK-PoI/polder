@@ -16,8 +16,9 @@ use crate::{
                 expression::{
                     BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
                 },
+                intrinsic::Intrinsics,
                 statement::{
-                    BinaryOp, SpannedStatement, StatementType, UnaryOp,
+                    BinaryOp, IntrinsicStatement, SpannedStatement, StatementType, UnaryOp,
                     VariableAssignmentStatement, VariableDeclarationStatement,
                 },
                 types::PolderType,
@@ -95,7 +96,7 @@ impl Interpreter<'_> {
                 self.interpret_variable_assignment(assignment, &stmt.1)
             }
             StatementType::Intrinsic(ref intrinsic) => {
-                intrinsic::interpret(intrinsic, &stmt.1, &mut self.store, io)
+                self.interpret_intrinsic(intrinsic, io, &stmt.1)
             }
         }
     }
@@ -205,6 +206,54 @@ impl Interpreter<'_> {
                 } else {
                     Ok(lhs / rhs)
                 }
+            }
+        }
+    }
+
+    fn interpret_intrinsic(
+        &mut self,
+        intrinsic: &IntrinsicStatement,
+        io: &mut Io,
+        span: &Range<usize>,
+    ) -> Result<(), RuntimeError> {
+        match intrinsic.intrinsic {
+            Intrinsics::Print | Intrinsics::Write => {
+                let literal: Vec<Literal> = intrinsic
+                    .args
+                    .clone()
+                    .into_iter()
+                    .map(|arg| self.interpret_expression(&arg))
+                    .collect::<Result<_, _>>()?;
+                intrinsic::print(literal, intrinsic.intrinsic == Intrinsics::Print, io)
+            }
+            Intrinsics::Readline => {
+                let identifier = match intrinsic.args.get(0) {
+                    Some(ref expr) => match &expr.expression {
+                        ExpressionType::Identifier(ident) => Ok(ident.clone()),
+                        other => Err(runtime_error!(
+                            span.clone(),
+                            RuntimeErrorKind::MismatchedType,
+                            other
+                        )),
+                    },
+                    None => Err(runtime_error!(
+                        span.clone(),
+                        RuntimeErrorKind::NoArgumentsProvided
+                    )),
+                }?;
+
+                if self.store.get(&identifier).is_none() {
+                    return Err(runtime_error!(
+                        span.clone(),
+                        RuntimeErrorKind::UndefinedVariable,
+                        identifier
+                    ));
+                }
+                
+                let value = intrinsic::readline(span, io)?;
+                self.store.write_input(&identifier, &value, span)?;
+                Ok(())
+                
             }
         }
     }
