@@ -163,16 +163,16 @@ impl Interpreter<'_> {
     ) -> Result<Literal, RuntimeError> {
         let expr = self.interpret_expression(&expression.expr)?;
 
-        if ![PolderType::Integer, PolderType::Float].contains(&(&expr).into()) {
-            return Err(runtime_error!(
-                expression.expr.span.clone(),
-                RuntimeErrorKind::CannotCalculateNonNumeric
-            ));
-        }
-
         match expression.op {
-            UnaryOp::Increment => Ok(expr + Literal::Integer(1)),
-            UnaryOp::Decrement => Ok(expr - Literal::Integer(1)),
+            UnaryOp::Increment => {
+                self.check_numeric(&expr, &expression.expr)?;
+                Ok(expr + Literal::Integer(1))
+            }
+            UnaryOp::Decrement => {
+                self.check_numeric(&expr, &expression.expr)?;
+                Ok(expr - Literal::Integer(1))
+            }
+            UnaryOp::Negation => Ok(!expr),
         }
     }
 
@@ -183,21 +183,9 @@ impl Interpreter<'_> {
         let lhs = self.interpret_expression(&expression.lhs)?;
         let rhs = self.interpret_expression(&expression.rhs)?;
 
-        if ![PolderType::Integer, PolderType::Float].contains(&(&lhs).into())
-            || ![PolderType::Integer, PolderType::Float].contains(&(&rhs).into())
-        {
-            let span = if expression.lhs.span.start > expression.rhs.span.end {
-                expression.rhs.span.start..expression.lhs.span.end
-            } else {
-                expression.lhs.span.start..expression.rhs.span.end
-            };
-
-            return Err(runtime_error!(
-                span,
-                RuntimeErrorKind::CannotCalculateNonNumeric
-            ));
-        }
-
+        self.check_numeric(&lhs, &expression.lhs)?;
+        self.check_numeric(&rhs, &expression.rhs)?;
+        
         match expression.op {
             BinaryOp::Add => Ok(lhs + rhs),
             BinaryOp::Subtract => Ok(lhs - rhs),
@@ -218,6 +206,7 @@ impl Interpreter<'_> {
             }
             BinaryOp::Less => Ok(Literal::Boolean(lhs < rhs)),
             BinaryOp::Greater => Ok(Literal::Boolean(lhs > rhs)),
+            BinaryOp::Equal => Ok(Literal::Boolean(lhs == rhs)),
         }
     }
 
@@ -314,6 +303,17 @@ impl Interpreter<'_> {
                 RuntimeErrorKind::UndefinedVariable,
                 variable_identifier
             )),
+        }
+    }
+
+    fn check_numeric(&self, lit: &Literal, expr: &Expression) -> Result<(), RuntimeError> {
+        if ![PolderType::Integer, PolderType::Float].contains(&(lit).into()) {
+            Err(runtime_error!(
+                expr.span.clone(),
+                RuntimeErrorKind::CannotCalculateNonNumeric
+            ))
+        } else {
+            Ok(())
         }
     }
 }

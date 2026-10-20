@@ -11,7 +11,7 @@ use crate::lang::compiler::{
         ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, Span, TokenStream, TokenType,
     },
     parser::{
-        expression::ExpressionType::Binary,
+        expression::ExpressionType::{Binary, Unary},
         statement::{BinaryOp, UnaryOp},
         types::{PolderType, parse_type},
     },
@@ -96,21 +96,51 @@ impl Expression {
             Expression::type_declaration(tokens)
         }?;
 
+        // Note: this may look stupid, but the `if` statement here is necessary
+        // to prevent tokens from being mutably borrowed more than once in the
+        // block scope of this function.
+        let is_negation = if tokens.unshift_if(TokenType::KWNiet).is_some() {
+            true
+        } else {
+            false
+        };
+
         if tokens.next_matches_any(BINARY_OPERATORS) {
             let op = Expression::parse_binary_op(tokens)?;
             let rhs = Expression::parse(tokens, level + 1)?;
             let span = lhs.span.start..rhs.span.end;
 
-            Ok(Expression {
+            let expr = Expression {
                 expression: Binary(BinaryExpression {
                     op,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 }),
-                span,
-            })
+                span: span.clone(),
+            };
+
+            if is_negation {
+                Ok(Expression {
+                    expression: Unary(UnaryExpression {
+                        op: UnaryOp::Negation,
+                        expr: Box::new(expr),
+                    }),
+                    span,
+                })
+            } else {
+                Ok(expr)
+            }
         } else {
-            Ok(lhs)
+            if is_negation {
+                Err(CompilerError {
+                    kind: ErrorCode::InvalidExpression,
+                    message: format!("Onverwacht {}", TokenType::KWNiet),
+                    span_message: format!("Verwachtte geen {} hier", TokenType::KWNiet),
+                    span: tokens.unshift().unwrap().span.clone(),
+                })
+            } else {
+                Ok(lhs)
+            }
         }
     }
 
@@ -138,13 +168,18 @@ impl Expression {
                 tokens.unshift_expect(TokenType::KWIs)?;
                 tokens.unshift_expect(TokenType::KWDan)?;
                 Ok(BinaryOp::Less)
-            },
+            }
             TokenType::KWGroter => {
                 tokens.unshift_expect(TokenType::KWIs)?;
                 tokens.unshift_expect(TokenType::KWDan)?;
                 Ok(BinaryOp::Greater)
             }
-            _ => unreachable!()
+            TokenType::KWGelijk => {
+                tokens.unshift_expect(TokenType::KWIs)?;
+                tokens.unshift_expect(TokenType::KWAan)?;
+                Ok(BinaryOp::Equal)
+            }
+            _ => unreachable!(),
         }
     }
 }

@@ -73,12 +73,14 @@ pub(crate) enum BinaryOp {
     Divide,
     Less,
     Greater,
+    Equal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) enum UnaryOp {
     Increment,
     Decrement,
+    Negation,
 }
 
 impl Statement {
@@ -524,7 +526,13 @@ impl Statement {
             tokens.unshift_expect(TokenType::KWZo)?;
             tokens.unshift_expect(TokenType::KWNiet)?;
             tokens.unshift_expect(TokenType::Comma)?;
-            Some(Statement::parse(tokens, true)?)
+
+            // Else-if blocks are also supported by following immediately with another 'Als',
+            if tokens.next_matches(TokenType::KWAls) {
+                Some(Statement::if_statement(tokens, false)?)
+            } else {
+                Some(Statement::parse(tokens, true)?)
+            }
         } else { None };
 
         let span = start.span.start..then_block.1.end;

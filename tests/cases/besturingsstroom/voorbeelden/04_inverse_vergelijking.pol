@@ -1,0 +1,9 @@
+Laat x 4 zijn.
+Laat y 5 zijn.
+
+Als x niet gelijk is aan y, druk dan "x en y zijn verschillend" af.
+Als x niet groter is dan 5, druk dan "x is gelijk aan of kleiner dan 5" af.
+Als x niet groter is dan 4, druk dan "x is gelijk aan of kleiner dan 4" af.
+Als x niet groter is dan 3, druk dan "x is gelijk aan of kleiner dan 3" af.
+
+Druk "Klaar." af.

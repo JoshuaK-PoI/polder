@@ -56,8 +56,10 @@ pub enum TokenType {
     KWAls,
     KWKleiner,
     KWGroter,
+    KWGelijk,
     KWIs,
     KWDan,
+    KWAan,
     KWZo,
     KWNiet,
 
@@ -80,6 +82,7 @@ pub(crate) const UNARY_OPERATORS: &[TokenType] = &[
 pub(crate) const BINARY_OPERATORS: &[TokenType] = &[
     TokenType::KWKleiner,
     TokenType::KWGroter,
+    TokenType::KWGelijk,
 ];
 
 pub(crate) const ARTICLES: &[TokenType] = &[
@@ -131,8 +134,10 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "als" => TokenType::KWAls,
     "kleiner" => TokenType::KWKleiner,
     "groter" => TokenType::KWGroter,
+    "gelijk" => TokenType::KWGelijk,
     "is" => TokenType::KWIs,
     "dan" => TokenType::KWDan,
+    "aan" => TokenType::KWAan,
     "zo" => TokenType::KWZo,
     "niet" => TokenType::KWNiet,
     "de" => TokenType::KWArticleDefD,
@@ -180,8 +185,10 @@ impl From<TokenType> for String {
                 TokenType::KWAls => "als",
                 TokenType::KWKleiner => "kleiner",
                 TokenType::KWGroter => "groter",
+                TokenType::KWGelijk => "gelijk",
                 TokenType::KWIs => "is",
                 TokenType::KWDan => "dan",
+                TokenType::KWAan => "aan",
                 TokenType::KWZo => "zo",
                 TokenType::KWNiet => "niet",
                 TokenType::KWArticleDefD => "de",
