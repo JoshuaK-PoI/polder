@@ -5,10 +5,13 @@ pub(crate) mod unary;
 use std::ops::Range;
 
 use crate::lang::compiler::{
-    CompilerResult,
+    CompilerError, CompilerResult, ErrorCode,
     iter::unshift::{Unshift, UnshiftExpect},
-    lexer::token::{ARITH_EXPR, ARTICLES, LITERALS, Span, TokenStream, TokenType},
+    lexer::token::{
+        ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, Span, TokenStream, TokenType,
+    },
     parser::{
+        expression::ExpressionType::Binary,
         statement::{BinaryOp, UnaryOp},
         types::{PolderType, parse_type},
     },
@@ -16,6 +19,8 @@ use crate::lang::compiler::{
 
 use literal::{Literal, literal};
 use serde::Serialize;
+
+const MAX_RECURSION_DEPTH: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct Expression {
@@ -66,19 +71,46 @@ impl Expression {
         Expression { expression, span }
     }
 
-    pub(crate) fn parse(tokens: &mut TokenStream) -> CompilerResult<Expression> {
-        Expression::unary(tokens)
+    pub(crate) fn parse(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
+        if level >= MAX_RECURSION_DEPTH {
+            let token = tokens.unshift().unwrap();
+            Err(CompilerError {
+                kind: ErrorCode::ExceededExpressionRecursion,
+                message: format!("Maximale recursiediepte bereikt"),
+                span_message: format!("Deze expressie recurseert te ver"),
+                span: token.span.clone(),
+            })
+        } else {
+            Expression::unary(tokens, level)
+        }
     }
 
-    fn unary(tokens: &mut TokenStream) -> CompilerResult<Expression> {
-        Expression::binary(tokens)
+    fn unary(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
+        Expression::binary(tokens, level)
     }
 
-    fn binary(tokens: &mut TokenStream) -> CompilerResult<Expression> {
-        if tokens.next_and_after_matches((ARTICLES, ARITH_EXPR)) {
-            binary::binary(tokens)
+    fn binary(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
+        let lhs = if tokens.next_and_after_matches((ARTICLES, ARITH_EXPR)) {
+            binary::binary_prefix(tokens, level)
         } else {
             Expression::type_declaration(tokens)
+        }?;
+
+        if tokens.next_matches_any(BINARY_OPERATORS) {
+            let op = Expression::parse_binary_op(tokens)?;
+            let rhs = Expression::parse(tokens, level + 1)?;
+            let span = lhs.span.start..rhs.span.end;
+
+            Ok(Expression {
+                expression: Binary(BinaryExpression {
+                    op,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                }),
+                span,
+            })
+        } else {
+            Ok(lhs)
         }
     }
 
@@ -97,6 +129,22 @@ impl Expression {
                 expression: ExpressionType::Type(type_.0),
                 span: type_.1,
             })
+        }
+    }
+
+    fn parse_binary_op(tokens: &mut TokenStream) -> CompilerResult<BinaryOp> {
+        match tokens.unshift().unwrap().type_ {
+            TokenType::KWKleiner => {
+                tokens.unshift_expect(TokenType::KWIs)?;
+                tokens.unshift_expect(TokenType::KWDan)?;
+                Ok(BinaryOp::Less)
+            },
+            TokenType::KWGroter => {
+                tokens.unshift_expect(TokenType::KWIs)?;
+                tokens.unshift_expect(TokenType::KWDan)?;
+                Ok(BinaryOp::Greater)
+            }
+            _ => unreachable!()
         }
     }
 }

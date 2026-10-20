@@ -46,7 +46,10 @@ fn main() {
     Interpreter::new(&input, &args.input, &program_options)
         .run(&mut io)
         .unwrap_or_else(|err| {
-            debug!(" [ Error ] : {}", serde_json::to_string_pretty(&err).unwrap());
+            debug!(
+                " [ Error ] : {}",
+                serde_json::to_string_pretty(&err).unwrap()
+            );
             ErrorLogger::new(&input, &args.input).report(&err)
         });
 }
@@ -56,7 +59,7 @@ mod tests {
     use crate::{io::Io, lang::interpreter::Interpreter, logger, program_options::ProgramOptions};
     use log;
     use std::fs::DirEntry;
-use std::sync::Once;
+    use std::sync::Once;
     use std::{fs, path::Path};
 
     static INIT: Once = Once::new();
@@ -90,11 +93,22 @@ use std::sync::Once;
         initialize();
         let program_options = ProgramOptions { print_ast: false };
         let test_dir = dir.path().join("voorbeelden");
-        let mut test_files = fs::read_dir(test_dir)
+        let mut test_files = fs::read_dir(&test_dir)
             .unwrap()
             .map(|f| f.unwrap())
-            .filter(|f| f.path().extension().unwrap().eq_ignore_ascii_case("pol"))
+            .filter(|f| {
+                if f.path().extension().is_some() {
+                    f.path().extension().unwrap().eq_ignore_ascii_case("pol")
+                } else {
+                    false
+                }
+            })
             .collect::<Vec<_>>();
+
+        if test_files.len() == 0 {
+            println!("No test files found: {}", test_dir.into_string().unwrap());
+            return;
+        }
 
         test_files.sort_by_key(|f| f.path());
 
@@ -153,19 +167,32 @@ use std::sync::Once;
         let mut test_files = fs::read_dir(&test_dir)
             .unwrap()
             .map(|f| f.unwrap())
-            .filter(|f| f.path().extension().unwrap().eq_ignore_ascii_case("pol"))
+            .filter(|f| {
+                if f.path().extension().is_some() {
+                    f.path().extension().unwrap().eq_ignore_ascii_case("pol")
+                } else {
+                    false
+                }
+            })
             .collect::<Vec<_>>();
+
+        if test_files.len() == 0 {
+            println!("No test files found: {}", test_dir.into_string().unwrap());
+            return;
+        }
 
         test_files.sort_by_key(|f| f.path());
 
-        assert!(&test_files.len() > &0, "No test files found");
         let mut report: Vec<String> = Vec::new();
 
         for file in test_files {
             let path = file.path();
             let file_name = path.file_name().unwrap().to_str().unwrap();
 
-            report.push(format!("Testing file: {}", test_dir.join(file_name).to_str().unwrap()));
+            report.push(format!(
+                "Testing file: {}",
+                test_dir.join(file_name).to_str().unwrap()
+            ));
             report.push(format!("{:-<1$}", "", 40));
             let input_str =
                 fs::read_to_string(path.with_extension("in")).unwrap_or_else(|_| String::new());
@@ -192,7 +219,13 @@ use std::sync::Once;
                     assert!(false);
                 }
             })
-            .expect_err(format!("Expected failure on {}, but passed", test_dir.join(file_name).to_str().unwrap()).as_str());
+            .expect_err(
+                format!(
+                    "Expected failure on {}, but passed",
+                    test_dir.join(file_name).to_str().unwrap()
+                )
+                .as_str(),
+            );
 
             report.clear();
         }

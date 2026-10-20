@@ -9,7 +9,7 @@ use crate::lang::compiler::{
     },
 };
 
-pub(super) fn binary(tokens: &mut TokenStream) -> CompilerResult<Expression> {
+pub(super) fn binary_prefix(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
     let article = tokens.unshift_expect_any(ARTICLES)?;
     let operator = tokens.unshift_expect_any(ARITH_EXPR)?;
     if !is_correct_article(&article.type_, &operator.type_) {
@@ -23,9 +23,9 @@ pub(super) fn binary(tokens: &mut TokenStream) -> CompilerResult<Expression> {
     
     tokens.unshift_expect(TokenType::KWVan)?;
 
-    let lhs = Expression::parse(tokens)?;
+    let lhs = Expression::parse(tokens, level + 1)?;
     tokens.unshift_expect(TokenType::KWEn)?;
-    let rhs = Expression::parse(tokens)?;
+    let rhs = Expression::parse(tokens, level + 1)?;
     let end = rhs.span.end;
 
     Ok(Expression {

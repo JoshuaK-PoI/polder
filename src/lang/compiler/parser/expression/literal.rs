@@ -9,7 +9,7 @@ use crate::lang::compiler::{
 
 use super::{Expression, ExpressionType};
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, PartialOrd)]
 pub(crate) enum Literal {
     String(String),
     Integer(i64),

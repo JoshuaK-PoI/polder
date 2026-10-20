@@ -3,9 +3,7 @@ use std::ops::Range;
 
 use crate::lang::compiler::{
     lexer::token::{KEYWORDS, Token},
-    parser::expression::{
-        BinaryExpression, ExpressionType, UnaryExpression
-    },
+    parser::expression::{BinaryExpression, ExpressionType, UnaryExpression},
 };
 
 use super::super::{
@@ -18,11 +16,12 @@ use super::{expression::Expression, intrinsic::Intrinsics, types::PolderType};
 
 pub(crate) type SpannedStatement = (StatementType, Span);
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) enum StatementType {
     VariableDeclaration(VariableDeclarationStatement),
     VariableAssignment(VariableAssignmentStatement),
     Intrinsic(IntrinsicStatement),
+    If(IfStatement),
 }
 
 impl From<&StatementType> for String {
@@ -59,12 +58,21 @@ pub(crate) struct VariableAssignmentStatement {
     pub(crate) expression: Expression,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct IfStatement {
+    pub(crate) check_expression: Expression,
+    pub(crate) then_statement: Box<SpannedStatement>,
+    pub(crate) else_statement: Box<Option<SpannedStatement>>
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) enum BinaryOp {
     Add,
     Subtract,
     Multiply,
     Divide,
+    Less,
+    Greater,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -74,31 +82,42 @@ pub(crate) enum UnaryOp {
 }
 
 impl Statement {
-    pub(crate) fn parse(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+    pub(crate) fn parse(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> CompilerResult<SpannedStatement> {
         if let Some(token) = tokens.peek() {
             let stmt = match token.type_ {
-                TokenType::KWDruk => Statement::intrinsic(Intrinsics::Print, tokens),
-                TokenType::KWSchrijf => Statement::intrinsic(Intrinsics::Write, tokens),
-                TokenType::KWMaak => Statement::variable_assignment(tokens),
-                TokenType::KWLaat => Statement::variable_declaration(tokens),
-                TokenType::KWLees => Statement::intrinsic(Intrinsics::Readline, tokens),
-                TokenType::KWTel => Statement::arith_add(tokens),
-                TokenType::KWTrek => Statement::arith_subtract(tokens),
-                TokenType::KWVermenigvuldig => Statement::arith_multiply(tokens),
-                TokenType::KWDeel => Statement::arith_divide(tokens),
-                TokenType::KWVerhoog => Statement::arith_increment(tokens),
-                TokenType::KWVerlaag => Statement::arith_decrement(tokens),
+                TokenType::KWDruk => Statement::intrinsic(Intrinsics::Print, tokens, in_then_block),
+                TokenType::KWSchrijf => {
+                    Statement::intrinsic(Intrinsics::Write, tokens, in_then_block)
+                }
+                TokenType::KWMaak => Statement::variable_assignment(tokens, in_then_block),
+                TokenType::KWLaat => Statement::variable_declaration(tokens, in_then_block),
+                TokenType::KWLees => {
+                    Statement::intrinsic(Intrinsics::Readline, tokens, in_then_block)
+                }
+                TokenType::KWTel => Statement::arith_add(tokens, in_then_block),
+                TokenType::KWTrek => Statement::arith_subtract(tokens, in_then_block),
+                TokenType::KWVermenigvuldig => Statement::arith_multiply(tokens, in_then_block),
+                TokenType::KWDeel => Statement::arith_divide(tokens, in_then_block),
+                TokenType::KWVerhoog => Statement::arith_increment(tokens, in_then_block),
+                TokenType::KWVerlaag => Statement::arith_decrement(tokens, in_then_block),
+                TokenType::KWAls => Statement::if_statement(tokens, in_then_block),
                 _ => todo!("Statement::parse < {} >", token.type_),
             }?;
 
-            tokens
-                .unshift_expect(TokenType::FullStop)
-                .map_err(|_| CompilerError {
-                    kind: ErrorCode::StatementNotTerminated,
-                    message: format!("Een zin eindigt met een punt."),
-                    span_message: format!("Ik verwachtte hier het einde van een zin."),
-                    span: stmt.1.clone(),
-                })?;
+            if !in_then_block {
+                tokens
+                    .unshift_expect(TokenType::FullStop)
+                    .map_err(|_| CompilerError {
+                        kind: ErrorCode::StatementNotTerminated,
+                        message: format!("Een zin eindigt met een punt."),
+                        span_message: format!("Ik verwachtte hier het einde van een zin."),
+                        span: stmt.1.clone(),
+                    })?;
+            }
+
             Ok(stmt)
         } else {
             Err(CompilerError {
@@ -110,11 +129,18 @@ impl Statement {
         }
     }
 
-    pub fn variable_assignment(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+    pub fn variable_assignment(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> CompilerResult<SpannedStatement> {
         let start = tokens.unshift_expect(TokenType::KWMaak)?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
         tokens.unshift_expect(TokenType::KWVan)?;
         let identifier = tokens.unshift_expect(TokenType::Identifier)?.value;
-        let expression = Expression::parse(tokens)?;
+        let expression = Expression::parse(tokens, 0)?;
         let end = expression.span.end;
 
         Ok((
@@ -126,7 +152,20 @@ impl Statement {
         ))
     }
 
-    pub fn variable_declaration(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+    pub fn variable_declaration(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> CompilerResult<SpannedStatement> {
+        if in_then_block {
+            return Err(CompilerError {
+                kind: ErrorCode::InvalidThenStatement,
+                message: format!("Hier kan geen variabele gemaakt worden"),
+                span_message: format!(
+                    "Een variabele kan niet in een 'Laat dan...' blok aangemaakt worden."
+                ),
+                span: tokens.unshift().unwrap().span.clone(),
+            });
+        }
         let start = tokens.unshift_expect(TokenType::KWLaat)?;
         let identifier = Statement::get_identifier(tokens, &start)?;
         let is_const = tokens.unshift_if(TokenType::KWConst).is_some();
@@ -144,7 +183,7 @@ impl Statement {
             });
         }
 
-        let expr = Expression::parse(tokens)?;
+        let expr = Expression::parse(tokens, 0)?;
 
         let result_expression = match expr.expression {
             ExpressionType::Binary(_) | ExpressionType::Literal(_) => {
@@ -202,7 +241,7 @@ impl Statement {
                     ));
                 }
 
-                let value = match Expression::parse(tokens) {
+                let value = match Expression::parse(tokens, 0) {
                     Ok(expr) => match expr.expression {
                         ExpressionType::Literal(ref lit) => {
                             if type_ != Into::<PolderType>::into(lit) {
@@ -262,11 +301,16 @@ impl Statement {
     pub fn intrinsic(
         intrinsic_name: Intrinsics,
         tokens: &mut TokenStream,
+        in_then_block: bool,
     ) -> CompilerResult<SpannedStatement> {
         let start = tokens.unshift_expect(intrinsic_name.expected_start_token())?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
         let mut arguments = Vec::new();
 
-        arguments.push(Expression::parse(tokens)?);
+        arguments.push(Expression::parse(tokens, 0)?);
 
         let end = tokens.unshift_expect(intrinsic_name.expected_end_token())?;
 
@@ -315,13 +359,20 @@ impl Statement {
         }
     }
 
-    fn arith_add(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+    fn arith_add(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> Result<SpannedStatement, CompilerError> {
         let start = tokens.unshift_expect(TokenType::KWTel)?;
-        let lhs = Expression::parse(tokens)?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
+        let lhs = Expression::parse(tokens, 0)?;
         tokens.unshift_expect(TokenType::KWBij)?;
         let rhs = tokens.unshift_expect(TokenType::Identifier)?;
         let end = tokens.unshift_expect(TokenType::KWOp)?;
-        
+
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Add,
@@ -331,13 +382,20 @@ impl Statement {
         ))
     }
 
-    fn arith_subtract(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+    fn arith_subtract(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> Result<SpannedStatement, CompilerError> {
         let start = tokens.unshift_expect(TokenType::KWTrek)?;
-        let lhs = Expression::parse(tokens)?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
+        let lhs = Expression::parse(tokens, 0)?;
         tokens.unshift_expect(TokenType::KWVan)?;
         let rhs = tokens.unshift_expect(TokenType::Identifier)?;
         let end = tokens.unshift_expect(TokenType::KWAf)?;
-        
+
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Subtract,
@@ -347,13 +405,20 @@ impl Statement {
         ))
     }
 
-    fn arith_multiply(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+    fn arith_multiply(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> Result<SpannedStatement, CompilerError> {
         let start = tokens.unshift_expect(TokenType::KWVermenigvuldig)?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
         let lhs = tokens.unshift_expect(TokenType::Identifier)?;
         tokens.unshift_expect(TokenType::KWMet)?;
-        let rhs = Expression::parse(tokens)?;
+        let rhs = Expression::parse(tokens, 0)?;
         let end = rhs.span.end;
-        
+
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Multiply,
@@ -363,13 +428,20 @@ impl Statement {
         ))
     }
 
-    fn arith_divide(tokens: &mut TokenStream) -> Result<SpannedStatement, CompilerError> {
+    fn arith_divide(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> Result<SpannedStatement, CompilerError> {
         let start = tokens.unshift_expect(TokenType::KWDeel)?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
         let lhs = tokens.unshift_expect(TokenType::Identifier)?;
         tokens.unshift_expect(TokenType::KWDoor)?;
-        let rhs = Expression::parse(tokens)?;
+        let rhs = Expression::parse(tokens, 0)?;
         let end = rhs.span.end;
-        
+
         Ok(variable_assignment_binary(
             start,
             BinaryOp::Divide,
@@ -379,8 +451,15 @@ impl Statement {
         ))
     }
 
-    fn arith_increment(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+    fn arith_increment(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> CompilerResult<SpannedStatement> {
         let start = tokens.unshift_expect(TokenType::KWVerhoog)?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
         let ident = tokens.unshift_expect(TokenType::Identifier)?;
         let ident_expr = Expression::make(
             ExpressionType::Identifier(ident.value.clone()),
@@ -394,8 +473,15 @@ impl Statement {
         ))
     }
 
-    fn arith_decrement(tokens: &mut TokenStream) -> CompilerResult<SpannedStatement> {
+    fn arith_decrement(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> CompilerResult<SpannedStatement> {
         let start = tokens.unshift_expect(TokenType::KWVerlaag)?;
+        if in_then_block {
+            tokens.unshift_expect(TokenType::KWDan)?;
+        }
+
         let ident = tokens.unshift_expect(TokenType::Identifier)?;
         let ident_expr = Expression::make(
             ExpressionType::Identifier(ident.value.clone()),
@@ -406,6 +492,50 @@ impl Statement {
             UnaryOp::Decrement,
             ident,
             ident_expr,
+        ))
+    }
+
+    fn if_statement(
+        tokens: &mut TokenStream,
+        in_then_block: bool,
+    ) -> CompilerResult<SpannedStatement> {
+        if in_then_block {
+            return Err(CompilerError {
+                kind: ErrorCode::InvalidThenStatement,
+                message: format!("Hier kan niet nogmaals een 'Als' voorkomen"),
+                span_message: format!(
+                    "Een 'als' kan niet het resultaat van een andere 'als' zijn."
+                ),
+                span: tokens.unshift().unwrap().span.clone(),
+            });
+        }
+
+        let start = tokens.unshift_expect(TokenType::KWAls)?;
+        let check_expression = Expression::parse(tokens, 0)?;
+        // @TODO: For now, we only support equality/gt/lt expressions
+        // When we support AND / OR, we may get more than 1 expression - in that case we will
+        // need to loop until we hit the comma.
+        tokens.unshift_expect(TokenType::Comma)?;
+
+        let then_block = Statement::parse(tokens, true)?;
+        
+        let else_block = if tokens.peek_next().is_some() && tokens.peek_next().unwrap().type_ == TokenType::KWZo {
+            tokens.unshift_expect(TokenType::FullStop)?;
+            tokens.unshift_expect(TokenType::KWZo)?;
+            tokens.unshift_expect(TokenType::KWNiet)?;
+            tokens.unshift_expect(TokenType::Comma)?;
+            Some(Statement::parse(tokens, true)?)
+        } else { None };
+
+        let span = start.span.start..then_block.1.end;
+
+        Ok((
+            StatementType::If(IfStatement {
+                check_expression,
+                then_statement: Box::new(then_block),
+                else_statement: Box::new(else_block),
+            }),
+            span,
         ))
     }
 }

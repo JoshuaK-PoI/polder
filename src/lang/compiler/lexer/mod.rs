@@ -59,6 +59,11 @@ impl<'a> Lexer<'a> {
                 String::from("."),
                 start_position..self.position
             ))),
+            Some(',') => Ok(Some(make_token!(
+                Comma,
+                String::from(","),
+                start_position..self.position
+            ))),
             Some(c) if c.is_alphabetic() => self.build_identifier(start_position, c),
             Some(c) if c.is_ascii_digit() => self.build_number(start_position, c),
             Some(c) => Err(CompilerError {
@@ -139,11 +144,12 @@ impl<'a> Lexer<'a> {
     ) -> Result<Option<Token>, CompilerError> {
         let str = self.continue_while(c, |c| c.is_alphanumeric() || *c == '_');
         let ident = str.into_iter().collect::<String>();
-        if let Some(number_word) = try_parse_numeric_literal(&ident, start_position..self.position)
+        if let Some(number_word) =
+            try_parse_numeric_literal(&ident.to_ascii_lowercase(), start_position..self.position)
         {
             return Ok(Some(number_word));
         }
-        if let Some(keyword) = KEYWORDS.get(ident.as_str()) {
+        if let Some(keyword) = KEYWORDS.get(&ident.to_ascii_lowercase()) {
             Ok(Some(Token {
                 type_: *keyword,
                 value: ident,

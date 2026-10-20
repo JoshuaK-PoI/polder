@@ -18,8 +18,8 @@ use crate::{
                 },
                 intrinsic::Intrinsics,
                 statement::{
-                    BinaryOp, IntrinsicStatement, SpannedStatement, StatementType, UnaryOp,
-                    VariableAssignmentStatement, VariableDeclarationStatement,
+                    BinaryOp, IfStatement, IntrinsicStatement, SpannedStatement, StatementType,
+                    UnaryOp, VariableAssignmentStatement, VariableDeclarationStatement,
                 },
                 types::PolderType,
             },
@@ -97,6 +97,9 @@ impl Interpreter<'_> {
             }
             StatementType::Intrinsic(ref intrinsic) => {
                 self.interpret_intrinsic(intrinsic, io, &stmt.1)
+            }
+            StatementType::If(ref if_statement) => {
+                self.interpret_if_statement(if_statement, io, &stmt.1)
             }
         }
     }
@@ -213,6 +216,8 @@ impl Interpreter<'_> {
                     Ok(lhs / rhs)
                 }
             }
+            BinaryOp::Less => Ok(Literal::Boolean(lhs < rhs)),
+            BinaryOp::Greater => Ok(Literal::Boolean(lhs > rhs)),
         }
     }
 
@@ -260,6 +265,33 @@ impl Interpreter<'_> {
                 self.store.write_input(&identifier, &value, span)?;
                 Ok(())
             }
+        }
+    }
+
+    fn interpret_if_statement(
+        &mut self,
+        statement: &IfStatement,
+        io: &mut Io,
+        span: &Range<usize>,
+    ) -> Result<(), RuntimeError> {
+        let condition = self.interpret_expression(&statement.check_expression)?;
+
+        if self.is_truthy(&condition) {
+            self.interpret_stmt(&statement.then_statement, io)?;
+        } else if let Some(else_stmt) = statement.else_statement.as_ref() {
+            self.interpret_stmt(else_stmt, io)?;
+        }
+
+        Ok(())
+    }
+
+    fn is_truthy(&self, condition: &Literal) -> bool {
+        match condition {
+            Literal::Boolean(b) => *b,
+            Literal::Char(c) => *c != '\0',
+            Literal::Float(f) => *f != 0f64,
+            Literal::Integer(i) => *i != 0,
+            Literal::String(s) => !s.is_empty(),
         }
     }
 
