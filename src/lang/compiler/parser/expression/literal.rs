@@ -1,10 +1,7 @@
 use serde::Serialize;
 
 use crate::lang::compiler::{
-    CompilerError, CompilerResult, ErrorCode,
-    iter::unshift::Unshift,
-    lexer::token::{TokenStream, TokenType},
-    parser::types::PolderType,
+    CompilerError, CompilerResult, ErrorCode, lexer::token::{Token, TokenType}, parser::types::PolderType,
 };
 
 use super::{Expression, ExpressionType};
@@ -147,9 +144,7 @@ impl Literal {
     }
 }
 
-pub(super) fn literal(tokens: &mut TokenStream) -> CompilerResult<Expression> {
-    let token = tokens.unshift().unwrap();
-
+pub(crate) fn literal(token: &mut Token) -> CompilerResult<Expression> {
     Ok(Expression {
         expression: match token.type_ {
             TokenType::Identifier => ExpressionType::Identifier(token.value.clone()),

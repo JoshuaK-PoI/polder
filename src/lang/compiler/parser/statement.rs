@@ -2,8 +2,8 @@ use serde::Serialize;
 use std::ops::Range;
 
 use crate::lang::compiler::{
-    lexer::token::{KEYWORDS, Token},
-    parser::expression::{BinaryExpression, ExpressionType, UnaryExpression},
+    lexer::token::{KEYWORDS, LITERALS, Token},
+    parser::expression::{BinaryExpression, ExpressionType, UnaryExpression, literal::literal},
 };
 
 use super::super::{
@@ -62,7 +62,7 @@ pub(crate) struct VariableAssignmentStatement {
 pub(crate) struct IfStatement {
     pub(crate) check_expression: Expression,
     pub(crate) then_statement: Box<SpannedStatement>,
-    pub(crate) else_statement: Box<Option<SpannedStatement>>
+    pub(crate) else_statement: Box<Option<SpannedStatement>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -513,15 +513,18 @@ impl Statement {
         }
 
         let start = tokens.unshift_expect(TokenType::KWAls)?;
-        let check_expression = Expression::parse(tokens, 0)?;
         // @TODO: For now, we only support equality/gt/lt expressions
         // When we support AND / OR, we may get more than 1 expression - in that case we will
         // need to loop until we hit the comma.
-        tokens.unshift_expect(TokenType::Comma)?;
+        let mut check_expression = Expression::parse(tokens, 0)?;
+
+        create_shorthand_if_statement(tokens, &mut check_expression)?;
 
         let then_block = Statement::parse(tokens, true)?;
-        
-        let else_block = if tokens.peek_next().is_some() && tokens.peek_next().unwrap().type_ == TokenType::KWZo {
+
+        let else_block = if tokens.peek_next().is_some()
+            && tokens.peek_next().unwrap().type_ == TokenType::KWZo
+        {
             tokens.unshift_expect(TokenType::FullStop)?;
             tokens.unshift_expect(TokenType::KWZo)?;
             tokens.unshift_expect(TokenType::KWNiet)?;
@@ -533,7 +536,9 @@ impl Statement {
             } else {
                 Some(Statement::parse(tokens, true)?)
             }
-        } else { None };
+        } else {
+            None
+        };
 
         let span = start.span.start..then_block.1.end;
 
@@ -546,6 +551,43 @@ impl Statement {
             span,
         ))
     }
+}
+
+fn create_shorthand_if_statement(tokens: &mut TokenStream, check_expression: &mut Expression) -> CompilerResult<()> {
+    let lit = match tokens.peek() {
+        Some(token) if token.type_ == TokenType::Comma => {
+            tokens.unshift_expect(TokenType::Comma)?;
+            Ok(None)
+        }
+        Some(token) if LITERALS.contains(&token.type_) => {
+            let lit = tokens.unshift_expect_any(LITERALS)?;
+            tokens.unshift_expect(TokenType::KWIs)?;
+            tokens.unshift_expect(TokenType::Comma)?;
+            Ok(Some(lit))
+        }
+        Some(token) => Err(CompilerError {
+            kind: ErrorCode::InvalidExpression,
+            message: format!("Onverwachte '{}'", token.type_),
+            span_message: format!(
+                "Verwachtte een literal of komma hier, maar vond '{}'",
+                token.type_
+            ),
+            span: token.span.clone(),
+        }),
+        None => unreachable!(),
+    }?;
+    Ok(if let Some(mut lit) = lit {
+        let span = check_expression.span.start..lit.span.end;
+
+        *check_expression = Expression {
+            expression: ExpressionType::Binary(BinaryExpression {
+                op: BinaryOp::Equal,
+                lhs: Box::new(check_expression.clone()),
+                rhs: Box::new(literal(&mut lit)?),
+            }),
+            span,
+        }
+    })
 }
 
 fn variable_assignment_unary(

@@ -146,7 +146,8 @@ impl Expression {
 
     fn type_declaration(tokens: &mut TokenStream) -> CompilerResult<Expression> {
         if tokens.next_matches_any(LITERALS) {
-            literal(tokens)
+            let token = tokens.unshift().unwrap();
+            literal(token)
         } else if tokens.next_matches(TokenType::Identifier) {
             let identifier = tokens.unshift().unwrap();
             Ok(Expression {
