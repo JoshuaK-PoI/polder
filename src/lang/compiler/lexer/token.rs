@@ -243,10 +243,6 @@ impl std::fmt::Display for Token {
     }
 }
 
-pub(crate) struct TokenBuffer {
-    token: Option<Token>
-}
-
 impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
     fn unshift_expect(&mut self, expected: TokenType) -> CompilerResult<Token> {
         match self.peek() {
