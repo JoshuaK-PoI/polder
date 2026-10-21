@@ -1,0 +1,15 @@
+Laat x 4 zijn.
+
+Als x 4 is:
+    Druk "x is 4" af.
+Klaar is Kees.
+
+Als x niet groter is dan 3:
+    Druk "Dit wordt niet afgedrukt." af.
+Anders:
+    Druk "x is groter dan 3" af.
+Klaar is Kees.
+
+Als de som van x en 1 5 is:
+    Druk "x plus 1 is 5" af.
+Klaar is Kees.

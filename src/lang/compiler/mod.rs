@@ -46,6 +46,7 @@ pub(crate) enum ErrorCode {
     ParseIntError,
     ExceededExpressionRecursion,
     InvalidThenStatement,
+    InvalidStatement,
 }
 
 impl From<ErrorCode> for String {

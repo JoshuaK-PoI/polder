@@ -56,9 +56,9 @@ pub(crate) struct VariableAssignmentStatement {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct IfStatement {
-    pub(crate) check_expression: Expression,
-    pub(crate) then_statement: Box<Statement>,
-    pub(crate) else_statement: Box<Option<Statement>>,
+    pub(crate) predicate: Expression,
+    pub(crate) then_statements: Vec<Statement>,
+    pub(crate) else_statements: Vec<Statement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -96,18 +96,60 @@ pub(crate) fn parse(tokens: &mut TokenStream, in_then_block: bool) -> CompilerRe
             TokenType::KWVerhoog => arith_increment(tokens, in_then_block),
             TokenType::KWVerlaag => arith_decrement(tokens, in_then_block),
             TokenType::KWAls => if_statement(tokens, in_then_block),
+            TokenType::KWKlaar => {
+                let start = tokens.unshift_expect(TokenType::KWKlaar)?;
+                tokens.unshift_expect(TokenType::KWIs)?;
+                let end = tokens.unshift_expect(TokenType::KWKees)?;
+
+                Err(CompilerError {
+                    kind: ErrorCode::InvalidStatement,
+                    message: format!("Kees was nog niet eens begonnen"),
+                    span_message: format!("Er is hier geen blok om af te sluiten."),
+                    span: (start.span.0, end.span.1),
+                })
+            }
+            TokenType::KWZo | TokenType::KWAnders => Err(CompilerError {
+                kind: ErrorCode::InvalidStatement,
+                message: format!(
+                    "'{}' hoort bij een 'Als'",
+                    if token.type_ == TokenType::KWZo {
+                        format!("Zo niet")
+                    } else {
+                        format!("Anders")
+                    }
+                ),
+                span_message: format!(
+                    "Er staat geen 'Als' vóór '{}'",
+                    if token.type_ == TokenType::KWZo {
+                        format!("Zo niet")
+                    } else {
+                        format!("Anders")
+                    }
+                ),
+                span: token.span,
+            }),
             _ => todo!("parse < {} >", token.type_),
         }?;
 
         if !in_then_block {
-            tokens
-                .unshift_expect(TokenType::FullStop)
-                .map_err(|_| CompilerError {
+            if !tokens.next_matches(TokenType::FullStop) {
+                let token = tokens.unshift();
+                return Err(CompilerError {
                     kind: ErrorCode::StatementNotTerminated,
                     message: format!("Een zin eindigt met een punt."),
-                    span_message: format!("Deze zin is niet beëindigd."),
-                    span
-                })?;
+                    span_message: if token.is_some() {
+                        format!("Nieuwe zin gestart zonder de vorige correct te beëindigen.")
+                    } else {
+                        format!("Deze zin is niet beëindigd.")
+                    },
+                    span: if token.is_some() {
+                        token.unwrap().span
+                    } else {
+                        span
+                    },
+                });
+            }
+            tokens.unshift_expect(TokenType::FullStop)?;
         }
 
         Ok(stmt)
@@ -181,7 +223,7 @@ pub fn variable_declaration(
                     identifier: identifier.value,
                     value_expression: expr,
                     is_const,
-                    declared_at: identifier.span
+                    declared_at: identifier.span,
                 },
             ))
         }
@@ -220,7 +262,7 @@ pub fn variable_declaration(
                         identifier: identifier.value,
                         value_expression: expr,
                         is_const,
-                        declared_at: identifier.span
+                        declared_at: identifier.span,
                     },
                 ));
             }
@@ -265,7 +307,7 @@ pub fn variable_declaration(
                     identifier: identifier.value,
                     value_expression: expr,
                     is_const,
-                    declared_at: identifier.span
+                    declared_at: identifier.span,
                 },
             ))
         }
@@ -402,10 +444,7 @@ fn arith_increment(tokens: &mut TokenStream, in_then_block: bool) -> CompilerRes
     }
 
     let ident = tokens.unshift_expect(TokenType::Identifier)?;
-    let ident_expr = Expression::make(
-        ExpressionType::Identifier(ident.value.clone()),
-        ident.span,
-    );
+    let ident_expr = Expression::make(ExpressionType::Identifier(ident.value.clone()), ident.span);
     Ok(variable_assignment_unary(
         start,
         UnaryOp::Increment,
@@ -421,10 +460,7 @@ fn arith_decrement(tokens: &mut TokenStream, in_then_block: bool) -> CompilerRes
     }
 
     let ident = tokens.unshift_expect(TokenType::Identifier)?;
-    let ident_expr = Expression::make(
-        ExpressionType::Identifier(ident.value.clone()),
-        ident.span,
-    );
+    let ident_expr = Expression::make(ExpressionType::Identifier(ident.value.clone()), ident.span);
     Ok(variable_assignment_unary(
         start,
         UnaryOp::Decrement,
@@ -443,36 +479,49 @@ fn if_statement(tokens: &mut TokenStream, in_then_block: bool) -> CompilerResult
         });
     }
 
-    tokens.unshift_expect(TokenType::KWAls)?;
+    let start = tokens.unshift_expect(TokenType::KWAls)?;
+
     // @TODO: For now, we only support equality/gt/lt expressions
     // When we support AND / OR, we may get more than 1 expression - in that case we will
-    // need to loop until we hit the comma.
-    let check_expression = Expression::parse(tokens, 0)?;
-    let check_expression = create_shorthand_if_statement(tokens, check_expression)?;
+    // need to loop until we hit the comma / colon.
+    let mut check_expression = Expression::parse(tokens, 0)?;
 
-    let then_block = parse(tokens, true)?;
+    if tokens.next_matches_any(LITERALS) {
+        check_expression = create_shorthand_if_statement(tokens, check_expression)?;
+    }
 
-    let else_block =
-        if tokens.peek_next().is_some() && tokens.peek_next().unwrap().type_ == TokenType::KWZo {
-            tokens.unshift_expect(TokenType::FullStop)?;
-            tokens.unshift_expect(TokenType::KWZo)?;
-            tokens.unshift_expect(TokenType::KWNiet)?;
-            tokens.unshift_expect(TokenType::Comma)?;
+    let expect_block = tokens.unshift_if(TokenType::Colon).is_some();
+    if !expect_block {
+        tokens
+            .unshift_expect(TokenType::Comma)
+            .map_err(|err| CompilerError {
+                kind: err.kind,
+                message: err.message,
+                span_message: format!("Verwachtte een literal, komma of dubbele punt hier."),
+                span: err.span,
+            })?;
+    }
 
-            // Else-if blocks are also supported by following immediately with another 'Als',
-            if tokens.next_matches(TokenType::KWAls) {
-                Some(if_statement(tokens, false)?)
-            } else {
-                Some(parse(tokens, true)?)
-            }
-        } else {
-            None
-        };
+    let mut then_statements = Vec::new();
+
+    if expect_block {
+        while tokens.peek().is_some_and(|token| {
+            ![TokenType::KWZo, TokenType::KWAnders, TokenType::KWKlaar].contains(&token.type_)
+        }) {
+            then_statements.push(parse(tokens, false)?);
+        }
+    } else {
+        then_statements.push(parse(tokens, true)?);
+    }
+
+    check_block_empty(&then_statements, &start, &check_expression)?;
+
+    let else_statements = parse_else_statements(tokens, expect_block, &start, &check_expression)?;
 
     Ok(Statement::If(IfStatement {
-        check_expression,
-        then_statement: Box::new(then_block),
-        else_statement: Box::new(else_block),
+        predicate: check_expression,
+        then_statements,
+        else_statements,
     }))
 }
 
@@ -480,43 +529,132 @@ fn create_shorthand_if_statement(
     tokens: &mut TokenStream,
     check_expression: Expression,
 ) -> CompilerResult<Expression> {
-    let lit = match tokens.peek() {
-        Some(token) if token.type_ == TokenType::Comma => {
-            tokens.unshift_expect(TokenType::Comma)?;
-            Ok(None)
-        }
-        Some(token) if LITERALS.contains(&token.type_) => {
-            let lit = tokens.unshift_expect_any(LITERALS)?;
-            tokens.unshift_expect(TokenType::KWIs)?;
-            tokens.unshift_expect(TokenType::Comma)?;
-            Ok(Some(lit))
-        }
-        Some(token) => Err(CompilerError {
-            kind: ErrorCode::InvalidExpression,
-            message: format!("Onverwachte '{}'", token.type_),
-            span_message: format!(
-                "Verwachtte een literal of komma hier, maar vond '{}'",
-                token.type_
-            ),
-            span: token.span,
+    let mut lit = tokens.unshift_expect_any(LITERALS)?;
+    tokens.unshift_expect(TokenType::KWIs)?;
+
+    let span = (check_expression.span.0, lit.span.1);
+
+    Ok(Expression {
+        expression: ExpressionType::Binary(BinaryExpression {
+            op: BinaryOp::Equal,
+            lhs: Box::new(check_expression),
+            rhs: Box::new(literal(&mut lit)?),
         }),
-        None => unreachable!(),
-    }?;
+        span,
+    })
+}
 
-    if let Some(mut lit) = lit {
-        let span = (check_expression.span.0, lit.span.1);
+fn parse_else_statements(
+    tokens: &mut TokenStream,
+    expect_block: bool,
+    start: &Token,
+    check_expression: &Expression,
+) -> CompilerResult<Vec<Statement>> {
+    let mut else_statements = Vec::new();
 
-        Ok(Expression {
-            expression: ExpressionType::Binary(BinaryExpression {
-                op: BinaryOp::Equal,
-                lhs: Box::new(check_expression),
-                rhs: Box::new(literal(&mut lit)?),
-            }),
-            span,
-        })
+    if expect_block {
+        // Expect Anders or Klaar
+        // if Anders:
+        //  Following Colon: make else block statement
+        //  Following Comma: make if statement -- TODO: this needs to be tested to make sure the correct scope levels are reached
+        // if Zo (niet):
+        //  Error - wrong else variant used
+        // if Klaar:
+        //  Nothing to do - return empty vec
+        // Any other token - Error
+        if tokens.next_and_after_matches((&[TokenType::KWZo], &[TokenType::KWNiet])) {
+            return Err(CompilerError {
+                kind: ErrorCode::InvalidStatement,
+                message: format!("'Zo niet' hoort bij een korte als-zin"),
+                span_message: format!("Gebruik hier 'Anders:' om het blok voort te zetten."),
+                span: (
+                    tokens.peek().unwrap().span.0,
+                    tokens.peek_next().unwrap().span.1,
+                ),
+            });
+        }
+
+        if tokens.unshift_if(TokenType::KWKlaar).is_some() {
+            tokens.unshift_expect(TokenType::KWIs)?;
+            tokens.unshift_expect(TokenType::KWKees)?;
+        } else if tokens.unshift_if(TokenType::KWAnders).is_some() {
+            if tokens.unshift_if(TokenType::Comma).is_some() {
+                else_statements.push(if_statement(tokens, false)?);
+            } else {
+                tokens.unshift_expect(TokenType::Colon)?;
+
+                while tokens
+                    .peek()
+                    .is_some_and(|token| token.type_ != TokenType::KWKlaar)
+                {
+                    else_statements.push(parse(tokens, false)?);
+                    if tokens.next_matches(TokenType::KWAnders) {
+                        return Err(CompilerError {
+                            kind: ErrorCode::InvalidStatement,
+                            message: format!("Er is al een 'Anders'"),
+                            span_message: format!("Dit als-blok heeft al een 'Anders'."),
+                            span: tokens.unshift().unwrap().span,
+                        });
+                    }
+                }
+
+                tokens.unshift_expect(TokenType::KWKlaar)?;
+                tokens.unshift_expect(TokenType::KWIs)?;
+                tokens.unshift_expect(TokenType::KWKees)?;
+            }
+        } else {
+            return Err(CompilerError {
+                kind: ErrorCode::InvalidStatement,
+                message: format!("Kees is nog niet klaar"),
+                span_message: format!("Dit blok wordt nergens afgesloten met 'Klaar is Kees.'"),
+                span: (start.span.0, check_expression.span.1),
+            });
+        }
     } else {
-        Ok(check_expression)
+        if tokens.next_and_after_matches((&[TokenType::FullStop], &[TokenType::KWAnders])) {
+            return Err(CompilerError {
+                kind: ErrorCode::InvalidStatement,
+                message: format!("Anders wát?"),
+                span_message: format!(
+                    "'Anders' hoort bij een blok. Gebruik 'Zo niet,' na een korte als-zin."
+                ),
+                span: tokens.peek_next().unwrap().span,
+            });
+        }
+
+        if tokens.next_and_after_matches((&[TokenType::FullStop], &[TokenType::KWZo])) {
+            tokens.unshift_expect(TokenType::FullStop)?;
+            tokens.unshift_expect(TokenType::KWZo)?;
+            tokens.unshift_expect(TokenType::KWNiet)?;
+            tokens.unshift_expect(TokenType::Comma)?;
+
+            // Else-if blocks are also supported by following immediately with another 'Als',
+            if tokens.next_matches(TokenType::KWAls) {
+                else_statements.push(if_statement(tokens, false)?);
+            } else {
+                else_statements.push(parse(tokens, true)?);
+            }
+        }
     }
+
+    Ok(else_statements)
+}
+
+fn check_block_empty(
+    statements: &Vec<Statement>,
+    start: &Token,
+    check_expression: &Expression,
+) -> CompilerResult<()> {
+    if statements.is_empty() {
+        Err(CompilerError {
+            kind: ErrorCode::InvalidStatement,
+            message: format!("Er valt niks te doen"),
+            span_message: format!("Dit blok is leeg."),
+            span: (start.span.0, check_expression.span.1),
+        })?;
+    }
+
+    Ok(())
 }
 
 fn variable_assignment_unary(

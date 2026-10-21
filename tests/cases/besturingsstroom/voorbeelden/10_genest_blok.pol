@@ -1,0 +1,14 @@
+Laat a 5 zijn.
+Laat b 0 zijn.
+
+Als a groter is dan 0:
+    Druk "a is positief" af.
+    Als b groter is dan 0:
+        Druk "b is positief" af.
+    Anders:
+        Druk "b is niet positief" af.
+    Klaar is Kees.
+    Druk "terug in het buitenste blok" af.
+Anders:
+    Druk "a is niet positief" af.
+Klaar is Kees.

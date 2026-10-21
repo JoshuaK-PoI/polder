@@ -218,12 +218,18 @@ impl Interpreter {
         statement: IfStatement,
         io: &mut Io,
     ) -> Result<(), RuntimeError> {
-        let condition = self.interpret_expression(&statement.check_expression)?;
+        let condition = self.interpret_expression(&statement.predicate)?;
 
         if self.is_truthy(&condition) {
-            self.interpret_statement(*statement.then_statement, io)?;
-        } else if let Some(else_stmt) = *statement.else_statement {
-            self.interpret_statement(else_stmt, io)?;
+            statement
+                .then_statements
+                .iter()
+                .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+        } else {
+            statement
+                .else_statements
+                .iter()
+                .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
         }
 
         Ok(())

@@ -1,0 +1,10 @@
+Laat x 3 zijn.
+
+Als x groter is dan 10:
+    Druk "groot" af.
+Anders:
+    Druk "klein" af.
+    Verhoog x.
+Klaar is Kees.
+
+Druk x af.

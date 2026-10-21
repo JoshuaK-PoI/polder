@@ -66,6 +66,11 @@ impl<'a> Lexer<'a> {
                 String::from(","),
                 (start_position, self.position)
             ))),
+            Some(':') => Ok(Some(make_token!(
+                Colon,
+                String::from(":"),
+                (start_position, self.position)
+            ))),
             Some(c) if c.is_alphabetic() => self.build_identifier(start_position, c),
             Some(c) if c.is_ascii_digit() => self.build_number(start_position, c),
             Some(c) => Err(CompilerError {

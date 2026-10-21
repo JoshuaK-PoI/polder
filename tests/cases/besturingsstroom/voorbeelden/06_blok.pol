@@ -1,0 +1,13 @@
+Laat x 12 zijn.
+
+Als x groter is dan 10:
+    Druk "x is groot" af.
+    Verlaag x.
+    Druk x af.
+Klaar is Kees.
+
+Als x kleiner is dan 10:
+    Druk "Dit wordt niet afgedrukt." af.
+Klaar is Kees.
+
+Druk "Klaar." af.

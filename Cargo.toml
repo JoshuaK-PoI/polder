@@ -3,6 +3,9 @@ name = "polder"
 version = "0.1.0"
 edition = "2024"
 
+[profile.dev]
+debug = true
+
 [dependencies]
 ariadne = "0.6.0"
 clap = { version = "4.6.7", features = ["derive"] }

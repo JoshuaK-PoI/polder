@@ -1,0 +1,15 @@
+Laat x 5 zijn.
+
+Als x gelijk is aan 1:
+    Druk "een" af.
+Anders, als x gelijk is aan 5:
+    Druk "vijf" af.
+Klaar is Kees.
+
+Als x gelijk is aan 1:
+    Druk "een" af.
+Anders, als x gelijk is aan 2:
+    Druk "twee" af.
+Klaar is Kees.
+
+Druk "Klaar." af.

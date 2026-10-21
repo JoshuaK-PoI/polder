@@ -19,6 +19,7 @@ pub enum TokenType {
     FullStop,
     Quote,
     Comma,
+    Colon,
 
     // Keywords
     KWDruk,
@@ -64,6 +65,7 @@ pub enum TokenType {
     KWAan,
     KWZo,
     KWNiet,
+    KWAnders,
 
     // Literals
     TrueLiteral,
@@ -74,6 +76,8 @@ pub enum TokenType {
     CharLiteral,
 
     Identifier,
+    KWKlaar,
+    KWKees,
 }
 
 pub(crate) const BINARY_OPERATORS: &[TokenType] = &[
@@ -137,6 +141,9 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "aan" => TokenType::KWAan,
     "zo" => TokenType::KWZo,
     "niet" => TokenType::KWNiet,
+    "anders" => TokenType::KWAnders,
+    "klaar" => TokenType::KWKlaar,
+    "kees" => TokenType::KWKees,
     "de" => TokenType::KWArticleDefD,
     "het" => TokenType::KWArticleDefH,
     "een" => TokenType::KWArticleIndef,
@@ -157,6 +164,7 @@ impl From<TokenType> for String {
                 TokenType::FullStop => ".",
                 TokenType::Quote => "'",
                 TokenType::Comma => ",",
+                TokenType::Colon => ":",
                 TokenType::KWDruk => "druk",
                 TokenType::KWAf => "af",
                 TokenType::KWLaat => "laat",
@@ -189,6 +197,9 @@ impl From<TokenType> for String {
                 TokenType::KWAan => "aan",
                 TokenType::KWZo => "zo",
                 TokenType::KWNiet => "niet",
+                TokenType::KWAnders => "anders",
+                TokenType::KWKlaar => "klaar",
+                TokenType::KWKees => "Kees",
                 TokenType::KWArticleDefD => "de",
                 TokenType::KWArticleDefH => "het",
                 TokenType::KWArticleIndef => "een",
@@ -230,6 +241,10 @@ impl std::fmt::Display for Token {
             self.span.1
         )
     }
+}
+
+pub(crate) struct TokenBuffer {
+    token: Option<Token>
 }
 
 impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {

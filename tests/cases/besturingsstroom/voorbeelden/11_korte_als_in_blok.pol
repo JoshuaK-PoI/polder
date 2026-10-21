@@ -1,0 +1,30 @@
+Laat a 5 zijn.
+Laat b 0 zijn.
+
+Als a groter is dan 0:
+    Als b groter is dan 0, druk dan "b is positief" af.
+    Zo niet, als b gelijk is aan 0, druk dan "b is nul" af.
+    Zo niet, druk dan "b is negatief" af.
+Anders:
+    Druk "a is niet positief" af.
+Klaar is Kees.
+
+Maak van b 3.
+
+Als a groter is dan 0:
+    Als b groter is dan 0, druk dan "b is positief" af.
+    Zo niet, als b gelijk is aan 0, druk dan "b is nul" af.
+    Zo niet, druk dan "b is negatief" af.
+Anders:
+    Druk "a is niet positief" af.
+Klaar is Kees.
+
+Maak van a 0.
+
+Als a groter is dan 0:
+    Als b groter is dan 0, druk dan "b is positief" af.
+    Zo niet, als b gelijk is aan 0, druk dan "b is nul" af.
+    Zo niet, druk dan "b is negatief" af.
+Anders:
+    Druk "a is niet positief" af.
+Klaar is Kees.

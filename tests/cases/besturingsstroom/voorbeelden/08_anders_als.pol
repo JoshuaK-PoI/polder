@@ -1,0 +1,38 @@
+Laat x 12 zijn.
+
+Als x groter is dan 10:
+    Druk "groot" af.
+    Verlaag x.
+Anders, als x gelijk is aan 10:
+    Druk "precies tien" af.
+Anders:
+    Druk "klein" af.
+    Verhoog x.
+Klaar is Kees.
+Druk x af.
+
+Maak van x 10.
+
+Als x groter is dan 10:
+    Druk "groot" af.
+    Verlaag x.
+Anders, als x gelijk is aan 10:
+    Druk "precies tien" af.
+Anders:
+    Druk "klein" af.
+    Verhoog x.
+Klaar is Kees.
+Druk x af.
+
+Maak van x 7.
+
+Als x groter is dan 10:
+    Druk "groot" af.
+    Verlaag x.
+Anders, als x gelijk is aan 10:
+    Druk "precies tien" af.
+Anders:
+    Druk "klein" af.
+    Verhoog x.
+Klaar is Kees.
+Druk x af.
