@@ -54,6 +54,10 @@ fn main() {
         Vec::new()
     });
 
+    if ast.is_empty() {
+        exit(1)
+    }
+
     if program_options.print_ast {
         let ast_outname = args.input.to_owned() + "__ast.json";
         let _ = std::fs::write(
@@ -68,8 +72,6 @@ fn main() {
             Ok(())
         });
     }
-
-    debug!("[interpreter] Compile OK, starting interpreter...");
 
     Interpreter::new()
         .run(&mut io, &mut ast)
