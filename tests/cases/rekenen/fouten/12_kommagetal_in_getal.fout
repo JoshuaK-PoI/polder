@@ -1,1 +1,1 @@
-{"message":" Verkeerd type","span_message":"x is een getal, geen kommagetal","span":{"start":15,"end":31}}
+{"message":" Verkeerd type","span_message":"x is een getal, geen kommagetal","span":[19,22]}

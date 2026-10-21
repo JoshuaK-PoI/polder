@@ -1,15 +1,10 @@
 pub(crate) mod binary;
 pub(crate) mod literal;
-pub(crate) mod unary;
-
-use std::ops::Range;
 
 use crate::lang::compiler::{
     CompilerError, CompilerResult, ErrorCode,
     iter::unshift::{Unshift, UnshiftExpect},
-    lexer::token::{
-        ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, Span, TokenStream, TokenType,
-    },
+    lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenStream, TokenType},
     parser::{
         expression::ExpressionType::{Binary, Unary},
         statement::{BinaryOp, UnaryOp},
@@ -25,7 +20,7 @@ const MAX_RECURSION_DEPTH: usize = 256;
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct Expression {
     pub(crate) expression: ExpressionType,
-    pub(crate) span: Span,
+    pub(crate) span: (usize, usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -67,7 +62,7 @@ impl std::fmt::Display for ExpressionType {
 }
 
 impl Expression {
-    pub(crate) fn make(expression: ExpressionType, span: Range<usize>) -> Self {
+    pub(crate) fn make(expression: ExpressionType, span: (usize, usize)) -> Self {
         Expression { expression, span }
     }
 
@@ -78,7 +73,7 @@ impl Expression {
                 kind: ErrorCode::ExceededExpressionRecursion,
                 message: format!("Maximale recursiediepte bereikt"),
                 span_message: format!("Deze expressie recurseert te ver"),
-                span: token.span.clone(),
+                span: token.span,
             })
         } else {
             Expression::unary(tokens, level)
@@ -108,7 +103,7 @@ impl Expression {
         if tokens.next_matches_any(BINARY_OPERATORS) {
             let op = Expression::parse_binary_op(tokens)?;
             let rhs = Expression::parse(tokens, level + 1)?;
-            let span = lhs.span.start..rhs.span.end;
+            let span = (lhs.span.0, rhs.span.1);
 
             let expr = Expression {
                 expression: Binary(BinaryExpression {
@@ -116,7 +111,7 @@ impl Expression {
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 }),
-                span: span.clone(),
+                span,
             };
 
             if is_negation {
@@ -136,7 +131,7 @@ impl Expression {
                     kind: ErrorCode::InvalidExpression,
                     message: format!("Onverwacht {}", TokenType::KWNiet),
                     span_message: format!("Verwachtte geen {} hier", TokenType::KWNiet),
-                    span: tokens.unshift().unwrap().span.clone(),
+                    span: tokens.unshift().unwrap().span,
                 })
             } else {
                 Ok(lhs)
@@ -152,7 +147,7 @@ impl Expression {
             let identifier = tokens.unshift().unwrap();
             Ok(Expression {
                 expression: ExpressionType::Identifier(identifier.value.clone()),
-                span: identifier.span.clone(),
+                span: identifier.span,
             })
         } else {
             let type_ = parse_type(tokens)?;

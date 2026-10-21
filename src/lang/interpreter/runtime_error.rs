@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use crate::logger::PolderError;
 
 #[macro_export]
@@ -32,7 +30,7 @@ macro_rules! runtime_error {
 pub(crate) struct RuntimeError {
     pub(crate) message: String,
     pub(crate) span_message: String,
-    pub(crate) span: Range<usize>,
+    pub(crate) span: (usize, usize),
 }
 
 impl From<RuntimeError> for PolderError {
@@ -47,7 +45,7 @@ impl From<RuntimeError> for PolderError {
 
 impl From<std::io::Error> for RuntimeError {
     fn from(value: std::io::Error) -> Self {
-        runtime_error!(0..0, RuntimeErrorKind::IOError, value)
+        runtime_error!((0, 0), RuntimeErrorKind::IOError, value)
     }
 }
 pub(crate) enum RuntimeErrorKind {
@@ -75,7 +73,9 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
             RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
             RuntimeErrorKind::DivideByZero => "Kan niet door nul delen".to_string(),
-            RuntimeErrorKind::CannotCalculateNonNumeric => "Rekenen kan alleen met getallen of kommagetallen".to_string(),
+            RuntimeErrorKind::CannotCalculateNonNumeric => {
+                "Rekenen kan alleen met getallen of kommagetallen".to_string()
+            }
             RuntimeErrorKind::UnsupportedFunction => "Functie (nog) niet ondersteund".to_string(),
             RuntimeErrorKind::IOError => "I/O Error".to_string(),
         }

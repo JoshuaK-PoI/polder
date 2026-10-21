@@ -1,1 +1,1 @@
-{"message":"Geen waarde toegewezen aan constante.","span_message":"Een constante variabele heeft een waarde nodig.","span":{"start":5,"end":7}}
+{"message":"Geen waarde toegewezen aan constante.","span_message":"Een constante variabele heeft een waarde nodig.","span":[5,7]}

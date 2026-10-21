@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use crate::{
     io::Io,
     lang::{
@@ -25,12 +23,9 @@ pub(super) fn print(
     Ok(())
 }
 
-pub(super) fn readline(range: &Range<usize>, io: &mut Io) -> Result<String, RuntimeError> {
+pub(super) fn readline(range: (usize, usize), io: &mut Io) -> Result<String, RuntimeError> {
     match io.read_line()? {
         Some(input) => Ok(input),
-        None => Err(runtime_error!(
-            range.clone(),
-            RuntimeErrorKind::NoInputGiven
-        )),
+        None => Err(runtime_error!(range, RuntimeErrorKind::NoInputGiven)),
     }
 }

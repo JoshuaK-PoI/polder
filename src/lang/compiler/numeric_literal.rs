@@ -1,9 +1,7 @@
-use std::ops::Range;
-
 use super::lexer::token::{Token, TokenType};
 use crate::lang::compiler::{CompilerError, ErrorCode, iter::unshift::Unshift};
 
-pub(crate) fn try_parse_numeric_literal(from: &String, span: Range<usize>) -> Option<Token> {
+pub(crate) fn try_parse_numeric_literal(from: &String, span: (usize, usize)) -> Option<Token> {
     match parse_numeric_literal(from, span) {
         Ok(token) => Some(token),
         Err(_) => None,
@@ -12,7 +10,7 @@ pub(crate) fn try_parse_numeric_literal(from: &String, span: Range<usize>) -> Op
 
 pub(crate) fn parse_numeric_literal(
     from: &String,
-    span: Range<usize>,
+    span: (usize, usize),
 ) -> Result<Token, CompilerError> {
     let chars = from
         .split("")
@@ -38,7 +36,7 @@ pub(crate) fn parse_numeric_literal(
             kind: ErrorCode::InvalidNumericLiteral,
             message: format!("Invalid numeric literal {}", from),
             span_message: format!("Invalid numeric literal"),
-            span: span.clone(),
+            span,
         });
     }
 
@@ -50,7 +48,7 @@ pub(crate) fn parse_numeric_literal(
             "nul" | "een" | "één" | "twee" | "drie" | "vier" | "vijf" | "zes" | "zeven"
             | "acht" | "negen" | "tien" | "elf" | "twaalf" | "dertien" | "veertien" | "twintig"
             | "dertig" | "veertig" | "tachtig" | "honderd" | "duizend" => {
-                check_next_part_correct_grammar(next, output.peek(), &from, &span)?;
+                check_next_part_correct_grammar(next, output.peek(), &from, span)?;
 
                 let value = WORD_TO_NUMBER.get(next.as_str()).unwrap();
                 if *value == 1000 {
@@ -61,7 +59,7 @@ pub(crate) fn parse_numeric_literal(
                             kind: ErrorCode::InvalidNumericLiteral,
                             message: format!("Invalid numeric literal {}", from),
                             span_message: format!("Invalid numeric literal"),
-                            span: span.clone(),
+                            span,
                         });
                     }
                     if acc == 0 {
@@ -89,7 +87,7 @@ pub(crate) fn parse_numeric_literal(
                 Ok(())
             }
             "en" | "ën" => {
-                check_next_part_correct_grammar(next, output.peek(), &from, &span)?;
+                check_next_part_correct_grammar(next, output.peek(), &from, span)?;
                 Ok(())
             }
 
@@ -100,7 +98,7 @@ pub(crate) fn parse_numeric_literal(
                     "Invalid numeric literal: {} Not registered as number token fragment",
                     c
                 ),
-                span: span.clone(),
+                span,
             }),
         }?;
     }
@@ -116,7 +114,7 @@ fn check_next_part_correct_grammar(
     cur: &String,
     next: Option<&&mut String>,
     from: &String,
-    span: &Range<usize>,
+    span: (usize, usize),
 ) -> Result<(), CompilerError> {
     if match cur.as_str() {
         "één" => next.is_none() || next.is_some() && (**(next.unwrap()) == "en".to_string()),
@@ -195,7 +193,7 @@ fn check_next_part_correct_grammar(
             kind: ErrorCode::InvalidNumericLiteral,
             message: format!("Invalid numeric literal {}", cur),
             span_message: format!("Invalid numeric literal '{}' in {}", from, cur),
-            span: span.clone(),
+            span,
         })
     }
 }
@@ -246,7 +244,7 @@ mod tests {
 
     macro_rules! assert_number_converted {
         ($literal:expr, $numerical:tt) => {
-            let lit = parse_numeric_literal(&String::from($literal), 0..0);
+            let lit = parse_numeric_literal(&String::from($literal), (0, 0));
 
             if lit.is_err() {
                 eprintln!("{}", format!("{:?}", lit.as_ref().err().unwrap()));
@@ -258,7 +256,7 @@ mod tests {
                 Token {
                     type_: TokenType::IntegerLiteral,
                     value: format!("{}", $numerical),
-                    span: 0..0
+                    span: (0, 0)
                 }
             );
         };

@@ -57,12 +57,12 @@ impl<'a> Lexer<'a> {
             Some('.') => Ok(Some(make_token!(
                 FullStop,
                 String::from("."),
-                start_position..self.position
+                (start_position, self.position)
             ))),
             Some(',') => Ok(Some(make_token!(
                 Comma,
                 String::from(","),
-                start_position..self.position
+                (start_position, self.position)
             ))),
             Some(c) if c.is_alphabetic() => self.build_identifier(start_position, c),
             Some(c) if c.is_ascii_digit() => self.build_number(start_position, c),
@@ -70,7 +70,7 @@ impl<'a> Lexer<'a> {
                 kind: ErrorCode::UnexpectedCharacter,
                 message: format!("Compiler doesn't know '{}'", c),
                 span_message: format!("{} is not a valid character", c),
-                span: self.position - 1..self.position,
+                span: (self.position - 1, self.position),
             }),
             None => Ok(None),
         }
@@ -102,7 +102,7 @@ impl<'a> Lexer<'a> {
                 kind: ErrorCode::UnexpectedCharacter,
                 message: error_message.to_string(),
                 span_message: error_message.to_string(),
-                span: self.position - 1..self.position,
+                span: (self.position - 1, self.position),
             })
         } else {
             Ok(char.unwrap())
@@ -133,7 +133,7 @@ impl<'a> Lexer<'a> {
         Ok(Some(make_token!(
             StringLiteral,
             text,
-            start_position..self.position
+            (start_position, self.position)
         )))
     }
 
@@ -145,7 +145,7 @@ impl<'a> Lexer<'a> {
         let str = self.continue_while(c, |c| c.is_alphanumeric() || *c == '_');
         let ident = str.into_iter().collect::<String>();
         if let Some(number_word) =
-            try_parse_numeric_literal(&ident.to_ascii_lowercase(), start_position..self.position)
+            try_parse_numeric_literal(&ident.to_ascii_lowercase(), (start_position, self.position))
         {
             return Ok(Some(number_word));
         }
@@ -153,13 +153,13 @@ impl<'a> Lexer<'a> {
             Ok(Some(Token {
                 type_: *keyword,
                 value: ident,
-                span: start_position..self.position,
+                span: (start_position, self.position),
             }))
         } else {
             Ok(Some(make_token!(
                 Identifier,
                 ident,
-                start_position..self.position
+                (start_position, self.position)
             )))
         }
     }
@@ -178,13 +178,13 @@ impl<'a> Lexer<'a> {
             Ok(Some(make_token!(
                 FloatLiteral,
                 str.iter().collect::<String>(),
-                start_position..self.position
+                (start_position, self.position)
             )))
         } else {
             Ok(Some(make_token!(
                 IntegerLiteral,
                 str.iter().collect::<String>(),
-                start_position..self.position
+                (start_position, self.position)
             )))
         }
     }
@@ -196,7 +196,7 @@ impl<'a> Lexer<'a> {
                 kind: ErrorCode::UnexpectedCharacter,
                 message: "Expected a character after single quote".to_string(),
                 span_message: "Expected a character here".to_string(),
-                span: self.position - 1..self.position,
+                span: (self.position - 1, self.position),
             });
         }
 
@@ -205,7 +205,7 @@ impl<'a> Lexer<'a> {
         Ok(Some(make_token!(
             CharLiteral,
             char.unwrap().to_string(),
-            start_position..self.position
+            (start_position, self.position)
         )))
     }
 }

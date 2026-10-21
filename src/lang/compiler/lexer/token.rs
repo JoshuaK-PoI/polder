@@ -6,7 +6,6 @@ use crate::lang::compiler::{
     iter::unshift::{Unshift, UnshiftExpect},
 };
 
-pub(crate) type Span = std::ops::Range<usize>;
 pub(crate) type TokenStream<'a> = PeekableNext<std::slice::IterMut<'a, Token>>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
@@ -73,11 +72,6 @@ pub enum TokenType {
 
     Identifier,
 }
-
-pub(crate) const UNARY_OPERATORS: &[TokenType] = &[
-    TokenType::KWVerhoog,
-    TokenType::KWVerlaag,
-];
 
 pub(crate) const BINARY_OPERATORS: &[TokenType] = &[
     TokenType::KWKleiner,
@@ -218,7 +212,7 @@ impl std::fmt::Display for TokenType {
 pub(crate) struct Token {
     pub(crate) type_: TokenType,
     pub(crate) value: String,
-    pub(crate) span: Span,
+    pub(crate) span: (usize, usize),
 }
 
 impl std::fmt::Display for Token {
@@ -228,8 +222,8 @@ impl std::fmt::Display for Token {
             "{:<16.16} {:<16.16} @ {:#04}..{:#04} ",
             format!("{}", self.type_),
             format!("'{}'", self.value),
-            self.span.start,
-            self.span.end
+            self.span.0,
+            self.span.1
         )
     }
 }
@@ -242,13 +236,13 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
                 kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
                 message: format!("Onverwacht: '{}'", token.value),
                 span_message: format!("Hier verwachtte ik '{}'.", expected),
-                span: self.unshift().unwrap().span.clone(),
+                span: self.unshift().unwrap().span,
             }),
             None => Err(CompilerError {
                 kind: crate::lang::compiler::ErrorCode::NoTokensLeft,
                 message: format!("Expected token {}, got None", expected),
                 span_message: format!("Expected token {}, got None", expected),
-                span: 0..0,
+                span: (0, 0),
             }),
         }
     }
@@ -262,13 +256,13 @@ impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
                 kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
                 message: format!("Expected one of: {:?}, got {}", expected, token),
                 span_message: format!("Expected one of: {:?}, got {}", expected, token),
-                span: self.peek().unwrap().span.clone(),
+                span: self.peek().unwrap().span,
             }),
             None => Err(CompilerError {
                 kind: crate::lang::compiler::ErrorCode::NoTokensLeft,
                 message: format!("Expected token {:?}, got None", expected),
                 span_message: format!("Expected one of: {:?}, got None", expected),
-                span: 0..0,
+                span: (0, 0),
             }),
         }
     }

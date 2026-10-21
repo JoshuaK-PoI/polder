@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use serde::Serialize;
 
 use super::super::{
@@ -53,7 +51,7 @@ impl std::fmt::Display for PolderType {
 
 pub(crate) fn parse_type(
     tokens: &mut TokenStream,
-) -> Result<(PolderType, Range<usize>), CompilerError> {
+) -> Result<(PolderType, (usize, usize)), CompilerError> {
     let article = tokens.unshift_expect_any(&[
         TokenType::KWArticleDefD,
         TokenType::KWArticleDefH,
@@ -69,12 +67,12 @@ pub(crate) fn parse_type(
                     kind: ErrorCode::WrongArticleForType,
                     message: format!("Lekker genederlandst"),
                     span_message: format!("Dat is geen correct Nederlands"),
-                    span: article.span.clone(),
+                    span: article.span,
                 })
             } else {
                 Ok((
                     PolderType::from(typedecl.value),
-                    article.span.start..typedecl.span.end,
+                    (article.span.0, typedecl.span.1),
                 ))
             }
         }
@@ -84,19 +82,19 @@ pub(crate) fn parse_type(
                     kind: ErrorCode::WrongArticleForType,
                     message: format!("Lekker genederlandst"),
                     span_message: format!("Dat is geen correct Nederlands"),
-                    span: article.span.clone(),
+                    span: article.span,
                 })
             } else {
                 Ok((
                     PolderType::from(typedecl.value),
-                    article.span.start..typedecl.span.end,
+                    (article.span.0, typedecl.span.1),
                 ))
             }
         }
         _ => Err(CompilerError {
             kind: ErrorCode::InvalidTypeDeclaration,
             message: format!("'{}' is geen type", typedecl.value),
-            span: typedecl.span.clone(),
+            span: typedecl.span,
             span_message: format!("'{}' is geen bekend type ", typedecl.value),
         }),
     }

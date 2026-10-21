@@ -1,13 +1,12 @@
 use ariadne::{Color, ColorGenerator, Label, Report, ReportKind, Source};
 use log::{LevelFilter, Metadata, Record};
 use serde::Serialize;
-use std::ops::Range;
 
 #[derive(Debug, Serialize)]
 pub(crate) struct PolderError {
     pub(crate) message: String,
     pub(crate) span_message: String,
-    pub(crate) span: Range<usize>,
+    pub(crate) span: (usize, usize),
 }
 
 pub(crate) struct ErrorLogger<'a> {
@@ -26,11 +25,11 @@ impl<'a> ErrorLogger<'a> {
 
         let report = Report::build(
             ReportKind::Custom("Doe normaal!", Color::Red),
-            (self.filename, error_detail.span.clone()),
+            (self.filename, error_detail.span.0..error_detail.span.1),
         )
         .with_message(&error_detail.message)
         .with_label(
-            Label::new((self.filename, error_detail.span.clone()))
+            Label::new((self.filename, error_detail.span.0..error_detail.span.1))
                 .with_message(&error_detail.span_message)
                 .with_color(color_1),
         );

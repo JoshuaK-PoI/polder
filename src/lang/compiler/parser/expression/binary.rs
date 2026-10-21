@@ -26,7 +26,7 @@ pub(super) fn binary_prefix(tokens: &mut TokenStream, level: usize) -> CompilerR
     let lhs = Expression::parse(tokens, level + 1)?;
     tokens.unshift_expect(TokenType::KWEn)?;
     let rhs = Expression::parse(tokens, level + 1)?;
-    let end = rhs.span.end;
+    let end = rhs.span.1;
 
     Ok(Expression {
         expression: Binary(BinaryExpression {
@@ -40,6 +40,6 @@ pub(super) fn binary_prefix(tokens: &mut TokenStream, level: usize) -> CompilerR
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
         }),
-        span: article.span.start..end,
+        span: (article.span.0, end),
     })
 }

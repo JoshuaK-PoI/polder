@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Range};
+use std::collections::HashMap;
 
 use crate::{
     lang::{
@@ -14,8 +14,7 @@ pub(crate) struct Store {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Variable {
-    pub(crate) declared_at: Range<usize>,
-    pub(crate) identifier: String,
+    pub(crate) declared_at: (usize, usize),
     pub(crate) type_: PolderType,
     pub(crate) value: Option<Literal>,
     pub(crate) is_const: bool,
@@ -30,32 +29,33 @@ impl Store {
 
     pub(crate) fn declare(
         &mut self,
+        identifier: String,
         variable: Variable,
-        range: &Range<usize>,
+        range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        if self.variable_defined(&variable.identifier) {
+        if self.variable_defined(&identifier) {
             return Err(runtime_error!(
-                range.clone(),
+                range,
                 RuntimeErrorKind::VariableAlreadyDefined,
-                variable.identifier
+                identifier
             ));
         }
 
-        self.check_type_compatible(&variable, None, range)?;
+        self.check_type_compatible(&identifier, &variable, None, range)?;
 
-        self.variables.insert(variable.identifier.clone(), variable);
+        self.variables.insert(identifier, variable);
         Ok(())
     }
 
     pub(crate) fn write(
         &mut self,
-        identifier: &String,
+        identifier: String,
         value: &Literal,
-        range: &Range<usize>,
+        range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        if !self.variable_defined(identifier) {
+        if !self.variable_defined(&identifier) {
             return Err(runtime_error!(
-                range.clone(),
+                range,
                 RuntimeErrorKind::UndefinedVariable,
                 identifier
             ));
@@ -65,59 +65,62 @@ impl Store {
             .get(&identifier)
             .expect("unreachable (already checked existence");
 
-        self.check_const(variable, range)?;
-        self.check_type_compatible(variable, Some(value), range)?;
+        self.check_const(&identifier, variable, range)?;
+        self.check_type_compatible(&identifier, variable, Some(value), range)?;
 
         self.variables
-            .entry(identifier.clone())
+            .entry(identifier)
             .and_modify(|variable| variable.value = Some(value.clone()));
 
         Ok(())
     }
 
-    pub(crate) fn get(&self, identifier: &String) -> Option<&Variable> {
+    pub(crate) fn get(&self, identifier: &str) -> Option<&Variable> {
         self.variables.get(identifier)
     }
 
     pub(crate) fn write_input(
         &mut self,
-        identifier: &String,
-        input: &String,
-        range: &Range<usize>,
+        identifier: String,
+        input: String,
+        range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        if !self.variable_defined(identifier) {
+        if !self.variable_defined(&identifier) {
             return Err(runtime_error!(
-                range.clone(),
+                range,
                 RuntimeErrorKind::UndefinedVariable,
                 identifier
             ));
         }
 
-        self.check_const(self.get(identifier).expect("unreachable"), range)?;
-        let literal = self.try_marshalling_type(identifier, input)?;
+        self.check_const(
+            &identifier,
+            self.get(&identifier).expect("unreachable"),
+            range,
+        )?;
+        let literal = self.try_marshalling_type(&identifier, input)?;
 
-        self.variables
-            .entry(identifier.clone())
-            .and_modify(|variable| {
-                if variable.value.is_none() {
-                    variable.value = Some(literal);
-                } else {
-                    todo!("Typecheck and fill existing variable")
-                }
-            });
+        self.variables.entry(identifier).and_modify(|variable| {
+            if variable.value.is_none() {
+                variable.value = Some(literal);
+            } else {
+                todo!("Typecheck and fill existing variable")
+            }
+        });
 
         Ok(())
     }
 
-    fn variable_defined(&self, identifier: &String) -> bool {
+    fn variable_defined(&self, identifier: &str) -> bool {
         self.variables.contains_key(identifier)
     }
 
     fn check_type_compatible(
         &self,
+        identifier: &str,
         variable: &Variable,
         input: Option<&Literal>,
-        range: &Range<usize>,
+        range: (usize, usize),
     ) -> Result<(), RuntimeError> {
         let value_to_type_check = input.or(variable.value.as_ref());
         match value_to_type_check {
@@ -135,12 +138,12 @@ impl Store {
                     Ok(())
                 } else {
                     Err(runtime_error!(
-                        range.clone(),
+                        range,
                         RuntimeErrorKind::MismatchedType,
                         "",
                         format!(
                             "{} is een {}, geen {}",
-                            variable.identifier,
+                            identifier,
                             variable.type_,
                             value.get_type()
                         )
@@ -150,15 +153,20 @@ impl Store {
         }
     }
 
-    fn check_const(&self, variable: &Variable, range: &Range<usize>) -> Result<(), RuntimeError> {
+    fn check_const(
+        &self,
+        identifier: &str,
+        variable: &Variable,
+        range: (usize, usize),
+    ) -> Result<(), RuntimeError> {
         if variable.is_const {
             Err(runtime_error!(
-                range.clone(),
+                range,
                 RuntimeErrorKind::VariableIsConst,
-                variable.identifier,
+                identifier,
                 format!(
                     "{} is voorgoed {}",
-                    variable.identifier,
+                    identifier,
                     variable.get_value().as_ref().unwrap()
                 )
             ))
@@ -169,8 +177,8 @@ impl Store {
 
     fn try_marshalling_type(
         &self,
-        identifier: &String,
-        input: &String,
+        identifier: &str,
+        input: String,
     ) -> Result<Literal, RuntimeError> {
         let type_ = &self
             .get(identifier)
@@ -179,7 +187,7 @@ impl Store {
 
         match type_ {
             PolderType::Boolean => try_bool(input),
-            PolderType::String => Ok(Literal::String(input.clone())),
+            PolderType::String => Ok(Literal::String(input)),
             PolderType::Integer => try_integer(input),
             PolderType::Float => try_float(input),
             PolderType::Char => try_char(input),
@@ -187,12 +195,12 @@ impl Store {
     }
 }
 
-fn try_bool(input: &String) -> Result<Literal, RuntimeError> {
+fn try_bool(input: String) -> Result<Literal, RuntimeError> {
     match input.as_str() {
         "waar" => Ok(Literal::Boolean(true)),
         "onwaar" => Ok(Literal::Boolean(false)),
         _ => Err(runtime_error!(
-            0..0,
+            (0, 0),
             RuntimeErrorKind::MismatchedType,
             input,
             String::from("Verwachtte 'waar' of 'onwaar' hier")
@@ -203,11 +211,11 @@ fn try_bool(input: &String) -> Result<Literal, RuntimeError> {
 // @TODO: Deduplicate this code in future, has overlap with lexer
 // @TODO: Runtime errors below should not point to source file in the below cases because they are coming from stdin
 // @TODO: Runtime errors below should not abort the program but read from stdin again
-fn try_integer(input: &String) -> Result<Literal, RuntimeError> {
+fn try_integer(input: String) -> Result<Literal, RuntimeError> {
     match input.parse::<i64>() {
         Ok(int) => Ok(Literal::Integer(int)),
         Err(_) => Err(runtime_error!(
-            0..0,
+            (0, 0),
             RuntimeErrorKind::MismatchedType,
             input,
             String::from("Verwachtte een getal hier")
@@ -215,11 +223,11 @@ fn try_integer(input: &String) -> Result<Literal, RuntimeError> {
     }
 }
 
-fn try_float(input: &String) -> Result<Literal, RuntimeError> {
+fn try_float(input: String) -> Result<Literal, RuntimeError> {
     match input.replace(',', ".").parse::<f64>() {
         Ok(flt) => Ok(Literal::Float(flt)),
         Err(_) => Err(runtime_error!(
-            0..0,
+            (0, 0),
             RuntimeErrorKind::MismatchedType,
             input,
             String::from("Ongeldig karakter in het kommagetal")
@@ -227,11 +235,11 @@ fn try_float(input: &String) -> Result<Literal, RuntimeError> {
     }
 }
 
-fn try_char(input: &String) -> Result<Literal, RuntimeError> {
+fn try_char(input: String) -> Result<Literal, RuntimeError> {
     match input.parse::<char>() {
         Ok(c) => Ok(Literal::Char(c)),
         Err(_) => Err(runtime_error!(
-            0..0,
+            (0, 0),
             RuntimeErrorKind::MismatchedType,
             input,
             String::from("Verwachtte een enkel karakter hier")

@@ -1,1 +1,1 @@
-{"message":"Wat is x dan?","span_message":"Je moet een type of een waarde toewijzen aan x","span":{"start":5,"end":6}}
+{"message":"Wat is x dan?","span_message":"Je moet een type of een waarde toewijzen aan x","span":[5,6]}

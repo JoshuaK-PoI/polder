@@ -4,11 +4,8 @@ pub(super) mod parser;
 
 mod numeric_literal;
 
-use std::ops::Range;
-
-use crate::logger::PolderError;
+use crate::{lang::compiler::parser::statement::Statement, logger::PolderError};
 use lexer::{Lexer, token::TokenType};
-use parser::AST;
 use peekable_next::PeekNext;
 
 #[derive(Debug)]
@@ -17,7 +14,7 @@ pub(crate) struct CompilerError {
     pub(crate) kind: ErrorCode,
     pub(crate) message: String,
     pub(crate) span_message: String,
-    pub(crate) span: Range<usize>,
+    pub(crate) span: (usize, usize),
 }
 
 impl From<CompilerError> for PolderError {
@@ -63,7 +60,7 @@ impl std::fmt::Display for ErrorCode {
     }
 }
 
-pub(crate) fn compile(input: &str) -> Result<AST, CompilerError> {
+pub(crate) fn compile(input: &str) -> Result<Vec<Statement>, CompilerError> {
     let mut tokens = Lexer::lex(input)?;
     parser::parse(&mut tokens.iter_mut().peekable_next())
 }

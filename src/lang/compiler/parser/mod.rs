@@ -4,15 +4,13 @@ pub(crate) mod statement;
 pub(crate) mod types;
 
 use super::{CompilerResult, lexer::token::TokenStream};
-use statement::{SpannedStatement, Statement};
+use statement::{Statement, parse as stmt_parse};
 
-pub(crate) type AST = Vec<SpannedStatement>;
-
-pub(crate) fn parse(tokens: &mut TokenStream) -> CompilerResult<AST> {
+pub(crate) fn parse(tokens: &mut TokenStream) -> CompilerResult<Vec<Statement>> {
     let mut ast = Vec::new();
 
-    while let Some(_) = tokens.peek() {
-        ast.push(Statement::parse(tokens, false)?);
+    while tokens.peek().is_some() {
+        ast.push(stmt_parse(tokens, false)?);
     }
 
     Ok(ast)
