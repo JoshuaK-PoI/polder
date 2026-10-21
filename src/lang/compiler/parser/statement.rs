@@ -553,15 +553,6 @@ fn parse_else_statements(
     let mut else_statements = Vec::new();
 
     if expect_block {
-        // Expect Anders or Klaar
-        // if Anders:
-        //  Following Colon: make else block statement
-        //  Following Comma: make if statement -- TODO: this needs to be tested to make sure the correct scope levels are reached
-        // if Zo (niet):
-        //  Error - wrong else variant used
-        // if Klaar:
-        //  Nothing to do - return empty vec
-        // Any other token - Error
         if tokens.next_and_after_matches((&[TokenType::KWZo], &[TokenType::KWNiet])) {
             return Err(CompilerError {
                 kind: ErrorCode::InvalidStatement,
@@ -628,7 +619,6 @@ fn parse_else_statements(
             tokens.unshift_expect(TokenType::KWNiet)?;
             tokens.unshift_expect(TokenType::Comma)?;
 
-            // Else-if blocks are also supported by following immediately with another 'Als',
             if tokens.next_matches(TokenType::KWAls) {
                 else_statements.push(if_statement(tokens, false)?);
             } else {
