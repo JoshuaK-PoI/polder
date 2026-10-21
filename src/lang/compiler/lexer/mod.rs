@@ -6,7 +6,9 @@ use log::trace;
 use peekable_next::{PeekNext, PeekableNext};
 use token::{KEYWORDS, Token, TokenType};
 
-use crate::lang::compiler::{CompilerError, ErrorCode, numeric_literal::try_parse_numeric_literal};
+use crate::lang::compiler::{
+    CompilerError, CompilerResult, ErrorCode, numeric_literal::try_parse_numeric_literal,
+};
 
 macro_rules! make_token {
     ($type_:ident, $value:expr, $span:expr) => {
@@ -149,6 +151,16 @@ impl<'a> Lexer<'a> {
         {
             return Ok(Some(number_word));
         }
+
+        if ident == "P" && self.chars.peek() == Some(&'.') && self.chars.peek_next() == Some(&'S') {
+            let comment = self.parse_comment()?;
+            return Ok(Some(make_token!(
+                Comment,
+                comment,
+                (start_position, self.position)
+            )));
+        }
+
         if let Some(keyword) = KEYWORDS.get(&ident.to_ascii_lowercase()) {
             Ok(Some(Token {
                 type_: *keyword,
@@ -207,5 +219,22 @@ impl<'a> Lexer<'a> {
             char.unwrap().to_string(),
             (start_position, self.position)
         )))
+    }
+
+    fn parse_comment(&mut self) -> CompilerResult<String> {
+        let mut str = String::new();
+        str.push(self.chars.next().expect("Expected '.'"));
+        str.push(self.chars.next().expect("Expected 'S'"));
+        self.position += 2;
+
+        str = format!(
+            "{}{}",
+            str,
+            self.continue_while('.', |c| *c != '\n')
+                .into_iter()
+                .collect::<String>()
+        );
+
+        Ok(str)
     }
 }

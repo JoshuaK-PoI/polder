@@ -10,6 +10,9 @@ pub(crate) type TokenStream<'a> = PeekableNext<std::slice::IterMut<'a, Token>>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum TokenType {
+    // Comment
+    Comment,
+
     // Single char
     Apostrophe,
     LowerApostrophe,
@@ -148,6 +151,7 @@ impl From<TokenType> for String {
         format!(
             "{}",
             match token {
+                TokenType::Comment => "<Comment>",
                 TokenType::Apostrophe => "”",
                 TokenType::LowerApostrophe => "„",
                 TokenType::FullStop => ".",
