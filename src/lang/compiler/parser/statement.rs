@@ -19,6 +19,7 @@ pub(crate) enum Statement {
     VariableAssignment(VariableAssignmentStatement),
     Intrinsic(IntrinsicStatement),
     If(IfStatement),
+    While(WhileStatement),
 }
 
 impl From<&Statement> for String {
@@ -61,6 +62,12 @@ pub(crate) struct IfStatement {
     pub(crate) else_statements: Vec<Statement>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct WhileStatement {
+    pub(crate) predicate: Expression,
+    pub(crate) then_statements: Vec<Statement>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) enum BinaryOp {
     Add,
@@ -96,6 +103,7 @@ pub(crate) fn parse(tokens: &mut TokenStream, in_then_block: bool) -> CompilerRe
             TokenType::KWVerhoog => arith_increment(tokens, in_then_block),
             TokenType::KWVerlaag => arith_decrement(tokens, in_then_block),
             TokenType::KWAls => if_statement(tokens, in_then_block),
+            TokenType::KWZolang => while_statement(tokens, in_then_block),
             TokenType::KWKlaar => {
                 let start = tokens.unshift_expect(TokenType::KWKlaar)?;
                 tokens.unshift_expect(TokenType::KWIs)?;
@@ -628,6 +636,41 @@ fn parse_else_statements(
     }
 
     Ok(else_statements)
+}
+
+fn while_statement(tokens: &mut TokenStream, in_then_block: bool) -> CompilerResult<Statement> {
+    if in_then_block {
+        return Err(CompilerError {
+            kind: ErrorCode::InvalidThenStatement,
+            message: format!("Hier kan geen 'Zolang' voorkomen"),
+            span_message: format!("Een 'zolang' kan niet het resultaat van een 'als' zijn."),
+            span: tokens.unshift().unwrap().span,
+        });
+    }
+
+    tokens.unshift_expect(TokenType::KWZolang);
+
+    let predicate = Expression::parse(tokens, 0)?;
+
+    tokens.unshift_expect(TokenType::Colon)?;
+
+    let mut then_statements = Vec::new();
+
+    while tokens
+        .peek()
+        .is_some_and(|token| token.type_ != TokenType::KWKlaar)
+    {
+        then_statements.push(parse(tokens, false)?);
+    }
+
+    tokens.unshift_expect(TokenType::KWKlaar)?;
+    tokens.unshift_expect(TokenType::KWIs)?;
+    tokens.unshift_expect(TokenType::KWKees)?;
+
+    Ok(Statement::While(WhileStatement {
+        predicate,
+        then_statements,
+    }))
 }
 
 fn check_block_empty(

@@ -5,7 +5,7 @@ use std::{
 };
 
 use clap::Parser;
-use log::{debug, error, info};
+use log::{error, info};
 
 use crate::{
     io::Io,

@@ -14,7 +14,7 @@ use crate::{
                 intrinsic::Intrinsics,
                 statement::{
                     BinaryOp, IfStatement, IntrinsicStatement, Statement, UnaryOp,
-                    VariableAssignmentStatement, VariableDeclarationStatement,
+                    VariableAssignmentStatement, VariableDeclarationStatement, WhileStatement,
                 },
                 types::PolderType,
             },
@@ -60,6 +60,9 @@ impl Interpreter {
             }
             Statement::Intrinsic(intrinsic) => self.interpret_intrinsic(intrinsic, io),
             Statement::If(if_statement) => self.interpret_if_statement(if_statement, io),
+            Statement::While(while_statement) => {
+                self.interpret_while_statement(while_statement, io)
+            }
         }
     }
 
@@ -230,6 +233,24 @@ impl Interpreter {
                 .else_statements
                 .iter()
                 .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+        }
+
+        Ok(())
+    }
+
+    fn interpret_while_statement(
+        &mut self,
+        statement: WhileStatement,
+        io: &mut Io,
+    ) -> Result<(), RuntimeError> {
+        let mut condition = self.interpret_expression(&statement.predicate)?;
+
+        while self.is_truthy(&condition) {
+            statement
+                .then_statements
+                .iter()
+                .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+            condition = self.interpret_expression(&statement.predicate)?;
         }
 
         Ok(())
