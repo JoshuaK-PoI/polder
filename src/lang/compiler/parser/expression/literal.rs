@@ -1,7 +1,9 @@
 use serde::Serialize;
 
 use crate::lang::compiler::{
-    CompilerError, CompilerResult, ErrorCode, lexer::token::{Token, TokenType}, parser::types::PolderType,
+    CompilerError, CompilerResult, ErrorCode,
+    lexer::token::{Token, TokenType},
+    parser::types::PolderType,
 };
 
 use super::{Expression, ExpressionType};
@@ -99,7 +101,7 @@ impl std::ops::Not for Literal {
     fn not(self) -> Self::Output {
         match self {
             Literal::Boolean(b) => Literal::Boolean(!b),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -144,7 +146,8 @@ impl Literal {
     }
 }
 
-pub(crate) fn literal(token: &mut Token) -> CompilerResult<Expression> {
+pub(crate) fn literal(token: Token) -> CompilerResult<Expression> {
+    let span = token.span;
     Ok(Expression {
         expression: match token.type_ {
             TokenType::Identifier => ExpressionType::Identifier(token.value.clone()),
@@ -156,7 +159,7 @@ pub(crate) fn literal(token: &mut Token) -> CompilerResult<Expression> {
                     kind: ErrorCode::ParseIntError,
                     message: format!("Could not parse value to int: {}", err),
                     span_message: format!("Cannot parse this to int"),
-                    span: token.span.clone(),
+                    span,
                 })?,
             )),
             TokenType::FloatLiteral => ExpressionType::Literal(Literal::Float(
@@ -168,7 +171,7 @@ pub(crate) fn literal(token: &mut Token) -> CompilerResult<Expression> {
                         kind: ErrorCode::ParseIntError,
                         message: format!("Could not parse value to float: {}", err),
                         span_message: format!("Cannot parse this to float"),
-                        span: token.span.clone(),
+                        span,
                     })?,
             )),
             TokenType::TrueLiteral | TokenType::FalseLiteral => {
@@ -179,16 +182,16 @@ pub(crate) fn literal(token: &mut Token) -> CompilerResult<Expression> {
                     kind: ErrorCode::ParseIntError,
                     message: format!("Could not parse value to char: {}", err),
                     span_message: format!("Cannot parse this to char"),
-                    span: token.span.clone(),
+                    span,
                 })?,
             )),
             type_ => Err(CompilerError {
                 kind: ErrorCode::InvalidExpression,
                 message: format!("Invalid expression: did not expect token of type {}", type_),
                 span_message: String::from(""),
-                span: token.span.clone(),
+                span,
             })?,
         },
-        span: token.span.clone(),
+        span,
     })
 }

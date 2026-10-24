@@ -142,12 +142,15 @@ mod tests {
         assert!(&test_files.len() > &0, "No test files found");
         let mut report: Vec<String> = Vec::new();
         let file_count = test_files.len();
-
+        let start_time = std::time::Instant::now();
         for file in test_files {
             let path = file.path();
             let file_name = path.file_name().unwrap().to_str().unwrap();
 
-            report.push(format!("Testing file: {}", file_name));
+            report.push(format!(
+                "Testing file: {}",
+                test_dir.join(file_name).to_str().unwrap()
+            ));
             report.push(format!("{:-<1$}", "", 40));
 
             let input_str =
@@ -188,11 +191,12 @@ mod tests {
                 }
             }
         }
-
+        let end_time = std::time::Instant::now();
         println!(
-            "{:<50} {:>4} files OK",
+            "{:<50} {:>4} files OK ({:>4.3} ms)",
             test_dir.into_string().unwrap(),
-            file_count
+            file_count,
+            (end_time - start_time).as_micros() as f64 / 1000.0f64
         );
     }
 
@@ -220,7 +224,7 @@ mod tests {
 
         let mut report: Vec<String> = Vec::new();
         let file_count = test_files.len();
-
+        let start_time = std::time::Instant::now();
         for file in test_files {
             let path = file.path();
             let file_name = path.file_name().unwrap().to_str().unwrap();
@@ -257,11 +261,12 @@ mod tests {
 
             report.clear();
         }
-
+        let end_time = std::time::Instant::now();
         println!(
-            "{:<50} {:>4} files OK",
+            "{:<50} {:>4} files OK ({:>4.3} ms)",
             test_dir.into_string().unwrap(),
-            file_count
+            file_count,
+            (end_time - start_time).as_micros() as f64 / 1000.0
         );
 
         fn check_error(error: PolderError, path: &PathBuf, report: &mut Vec<String>) -> bool {

@@ -6,7 +6,6 @@ mod numeric_literal;
 
 use crate::{lang::compiler::parser::statement::Statement, logger::PolderError};
 use lexer::{Lexer, token::TokenType};
-use peekable_next::PeekNext;
 
 #[derive(Debug)]
 pub(crate) struct CompilerError {
@@ -44,7 +43,6 @@ pub(crate) enum ErrorCode {
     ConstDeclarationMustHaveValue,
     InvalidIdentifier,
     ParseIntError,
-    ExceededExpressionRecursion,
     InvalidThenStatement,
     InvalidStatement,
 }
@@ -62,6 +60,5 @@ impl std::fmt::Display for ErrorCode {
 }
 
 pub(crate) fn compile(input: &str) -> Result<Vec<Statement>, CompilerError> {
-    let mut tokens = Lexer::lex(input)?;
-    parser::parse(&mut tokens.iter_mut().peekable_next())
+    parser::Parser::parse(Lexer::lex(input)?)
 }
