@@ -76,66 +76,62 @@ impl Expression {
                 span: token.span,
             })
         } else {
-            Expression::unary(tokens, level)
+            Expression::comparison(tokens, level)
         }
     }
 
-    fn unary(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
-        Expression::binary(tokens, level)
-    }
+    fn comparison(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
+        let lhs = Expression::binary(tokens, level)?;
+        let negate = tokens.unshift_if(TokenType::KWNiet).is_some();
 
-    fn binary(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
-        let lhs = if tokens.next_and_after_matches((ARTICLES, ARITH_EXPR)) {
-            binary::binary_prefix(tokens, level)
-        } else {
-            Expression::type_declaration(tokens)
-        }?;
+        if tokens
+            .peek()
+            .is_some_and(|token| BINARY_OPERATORS.contains(&token.type_))
+        {
+            let token = tokens.unshift().expect("Unreachable");
+            tokens.unshift_expect(TokenType::KWIs)?;
+            tokens.unshift_expect(if token.type_ == TokenType::KWGelijk {
+                TokenType::KWAan
+            } else {
+                TokenType::KWDan
+            })?;
 
-        // Note: this may look stupid, but the `if` statement here is necessary
-        // to prevent tokens from being mutably borrowed more than once in the
-        // block scope of this function.
-        let is_negation = if tokens.unshift_if(TokenType::KWNiet).is_some() {
-            true
-        } else {
-            false
-        };
-
-        if tokens.next_matches_any(BINARY_OPERATORS) {
-            let op = Expression::parse_binary_op(tokens)?;
-            let rhs = Expression::parse(tokens, level + 1)?;
+            let rhs = Expression::binary(tokens, level)?;
             let span = (lhs.span.0, rhs.span.1);
-
-            let expr = Expression {
+            let expression = Expression {
                 expression: Binary(BinaryExpression {
-                    op,
+                    op: token.type_.into(),
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 }),
                 span,
             };
 
-            if is_negation {
-                Ok(Expression {
+            if negate {
+                return Ok(Expression {
                     expression: Unary(UnaryExpression {
                         op: UnaryOp::Negation,
-                        expr: Box::new(expr),
+                        expr: Box::new(expression),
                     }),
                     span,
-                })
-            } else {
-                Ok(expr)
+                });
             }
+
+            return Ok(expression);
+        }
+
+        if negate {
+            todo!("Negate without a comparison to make");
+        }
+
+        Ok(lhs)
+    }
+
+    pub(crate) fn binary(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
+        if tokens.next_and_after_matches((ARTICLES, ARITH_EXPR)) {
+            binary::binary_prefix(tokens, level)
         } else {
-            if is_negation {
-                Err(CompilerError {
-                    kind: ErrorCode::InvalidExpression,
-                    message: format!("Onverwacht {}", TokenType::KWNiet),
-                    span_message: format!("Verwachtte geen {} hier", TokenType::KWNiet),
-                    span: tokens.unshift().unwrap().span,
-                })
-            } else {
-                Ok(lhs)
-            }
+            Expression::type_declaration(tokens)
         }
     }
 

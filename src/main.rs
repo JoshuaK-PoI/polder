@@ -85,6 +85,7 @@ mod tests {
     use crate::{io::Io, lang::interpreter::Interpreter, logger};
     use log;
     use std::fs::DirEntry;
+    use std::panic;
     use std::path::PathBuf;
     use std::sync::Once;
     use std::{fs, path::Path};

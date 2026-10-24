@@ -20,12 +20,12 @@ pub(super) fn binary_prefix(tokens: &mut TokenStream, level: usize) -> CompilerR
             span: article.span.clone(),
         });
     }
-    
+
     tokens.unshift_expect(TokenType::KWVan)?;
 
-    let lhs = Expression::parse(tokens, level + 1)?;
+    let lhs = Expression::binary(tokens, level + 1)?;
     tokens.unshift_expect(TokenType::KWEn)?;
-    let rhs = Expression::parse(tokens, level + 1)?;
+    let rhs = Expression::binary(tokens, level + 1)?;
     let end = rhs.span.1;
 
     Ok(Expression {

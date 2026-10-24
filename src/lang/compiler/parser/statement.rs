@@ -79,6 +79,17 @@ pub(crate) enum BinaryOp {
     Equal,
 }
 
+impl Into<BinaryOp> for TokenType {
+    fn into(self) -> BinaryOp {
+        match self {
+            TokenType::KWGroter => BinaryOp::Greater,
+            TokenType::KWKleiner => BinaryOp::Less,
+            TokenType::KWGelijk => BinaryOp::Equal,
+            _ => panic!("Binary op not implemented for token type {}", self),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) enum UnaryOp {
     Increment,
@@ -648,7 +659,7 @@ fn while_statement(tokens: &mut TokenStream, in_then_block: bool) -> CompilerRes
         });
     }
 
-    tokens.unshift_expect(TokenType::KWZolang);
+    tokens.unshift_expect(TokenType::KWZolang)?;
 
     let predicate = Expression::parse(tokens, 0)?;
 

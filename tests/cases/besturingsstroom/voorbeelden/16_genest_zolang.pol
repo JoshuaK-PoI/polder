@@ -1,0 +1,11 @@
+Laat i 1 zijn.
+Laat j 1 zijn.
+
+Zolang i kleiner is dan 4:
+    Maak van j 1.
+    Zolang j kleiner is dan 4:
+        Druk het product van i en j af.
+        Verhoog j.
+    Klaar is Kees.
+    Verhoog i.
+Klaar is Kees.
