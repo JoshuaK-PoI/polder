@@ -1,0 +1,8 @@
+Laat x 0 zijn.
+
+Zolang x groter is dan 0:
+    Druk "Dit wordt niet afgedrukt." af.
+    Verlaag x.
+Klaar is Kees.
+
+Druk "Klaar." af.

@@ -1,0 +1,10 @@
+Laat x 1 zijn.
+
+Zolang x kleiner is dan 6:
+    Als x gelijk is aan 3:
+        Druk "drie!" af.
+    Anders:
+        Druk x af.
+    Klaar is Kees.
+    Verhoog x.
+Klaar is Kees.

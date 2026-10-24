@@ -41,7 +41,7 @@ impl Store {
             ));
         }
 
-        self.check_type_compatible(&identifier, &variable, None, range)?;
+        Store::check_type_compatible(&identifier, &variable, None, range)?;
 
         self.variables.insert(identifier, variable);
         Ok(())
@@ -66,7 +66,7 @@ impl Store {
             .expect("unreachable (already checked existence");
 
         self.check_const(&identifier, variable, range)?;
-        self.check_type_compatible(&identifier, variable, Some(value), range)?;
+        Store::check_type_compatible(&identifier, variable, Some(value), range)?;
 
         self.variables
             .entry(identifier)
@@ -99,16 +99,35 @@ impl Store {
             range,
         )?;
         let literal = self.try_marshalling_type(&identifier, input)?;
+        let mut modified: Result<(), RuntimeError> = Ok(());
 
-        self.variables.entry(identifier).and_modify(|variable| {
-            if variable.value.is_none() {
+        self.variables
+            .entry(identifier.clone())
+            .and_modify(|variable| {
+                if variable.value.is_some()
+                    && Store::check_type_compatible(&identifier, variable, Some(&literal), range)
+                        .is_err()
+                {
+                    modified = Err(runtime_error!(
+                        range,
+                        RuntimeErrorKind::MismatchedType,
+                        format!(
+                            "Verwachtte een {}, maar zag een {}",
+                            variable.type_,
+                            literal.get_type()
+                        ),
+                        format!(
+                            "Verwachtte een {}, maar zag een {}",
+                            variable.type_,
+                            literal.get_type()
+                        )
+                    ))
+                }
+
                 variable.value = Some(literal);
-            } else {
-                todo!("Typecheck and fill existing variable")
-            }
-        });
+            });
 
-        Ok(())
+        modified
     }
 
     fn variable_defined(&self, identifier: &str) -> bool {
@@ -116,7 +135,6 @@ impl Store {
     }
 
     fn check_type_compatible(
-        &self,
         identifier: &str,
         variable: &Variable,
         input: Option<&Literal>,

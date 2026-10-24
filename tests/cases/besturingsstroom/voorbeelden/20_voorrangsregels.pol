@@ -1,0 +1,16 @@
+Laat x 1 zijn.
+Laat y 2 zijn.
+
+
+P.S. Dit precedence probleem is hetzelfde als `if x + y > 2`, waarin verkeerde precende regels ook probelemen kunnen veroorzaken.
+P.S.
+
+Als de som van x en y groter is dan 2:
+    Druk "Dit wordt afgedrukt" af.
+    Verhoog x.
+Anders:
+    Druk "Dit wordt niet afgedrukt" af.
+Klaar is Kees.
+
+Druk x af.
+Druk "Klaar." af.

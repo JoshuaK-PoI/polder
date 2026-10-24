@@ -1,0 +1,10 @@
+Laat invoer een getal zijn.
+Laat totaal 0 zijn.
+
+Lees invoer in.
+Zolang invoer niet gelijk is aan 0:
+    Tel invoer bij totaal op.
+    Lees invoer in.
+Klaar is Kees.
+
+Druk totaal af.

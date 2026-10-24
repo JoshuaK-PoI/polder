@@ -1,0 +1,11 @@
+Laat x 3 zijn.
+
+Als x groter is dan 0:
+    Zolang x niet kleiner is dan 1:
+        Druk x af.
+        Verlaag x.
+    Klaar is Kees.
+    Druk "Af!" af.
+Anders:
+    Druk "Niets af te tellen." af.
+Klaar is Kees.

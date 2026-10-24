@@ -34,6 +34,12 @@ impl<'a> Lexer<'a> {
             tokens.push(token);
         }
 
+        tokens.push(Token {
+            type_: TokenType::EOF,
+            value: format!("{{Einde van het bestand}}"),
+            span: (lexer.position, lexer.position)
+        });
+
         if log::max_level() >= log::LevelFilter::Trace {
             trace!("{:^16}|{:^16} @ {}", "Type", "Literal", "Position");
             trace!("{:-<1$}", "", 40);

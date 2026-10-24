@@ -1,5 +1,34 @@
 
 
+//// New Syntax Rules ////
+
+
+Expression := Equality
+
+
+
+
+
+Equality := Additive (`==` | `>=` | `<=` | `!=` Additive)*
+
+Additive := Multiplicative ('+' | '-' Multiplicative)*
+
+Multiplicative := Primary `*` | `/` Primary
+
+//// End New Syntax Rules ////
+
+
+
+
+
+
+
+
+
+
+
+
+
 VariableDeclarationStatement := LAAT ( Identifier ) ( Expr ) ZIJN FULLSTOP;
 
 ( Expr ) :=

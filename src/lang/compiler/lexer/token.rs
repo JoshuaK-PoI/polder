@@ -1,12 +1,4 @@
-use peekable_next::PeekableNext;
 use serde::Serialize;
-
-use crate::lang::compiler::{
-    CompilerError, CompilerResult,
-    iter::unshift::{Unshift, UnshiftExpect},
-};
-
-pub(crate) type TokenStream<'a> = PeekableNext<std::slice::IterMut<'a, Token>>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum TokenType {
@@ -81,6 +73,7 @@ pub enum TokenType {
     Identifier,
     KWKlaar,
     KWKees,
+    EOF,
 }
 
 pub(crate) const BINARY_OPERATORS: &[TokenType] = &[
@@ -162,6 +155,7 @@ impl From<TokenType> for String {
         format!(
             "{}",
             match token {
+                TokenType::EOF => "<EOF>",
                 TokenType::Comment => "<Comment>",
                 TokenType::Apostrophe => "”",
                 TokenType::LowerApostrophe => "„",
@@ -245,81 +239,5 @@ impl std::fmt::Display for Token {
             self.span.0,
             self.span.1
         )
-    }
-}
-
-impl<'a> UnshiftExpect<Token, TokenType, CompilerError> for TokenStream<'a> {
-    fn unshift_expect(&mut self, expected: TokenType) -> CompilerResult<Token> {
-        match self.peek() {
-            Some(token) if token.type_ == expected => Ok(self.unshift().unwrap().to_owned()),
-            Some(token) => Err(CompilerError {
-                kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
-                message: format!("Onverwacht: '{}'", token.value),
-                span_message: format!("Hier verwachtte ik '{}'.", expected),
-                span: self.unshift().unwrap().span,
-            }),
-            None => Err(CompilerError {
-                kind: crate::lang::compiler::ErrorCode::NoTokensLeft,
-                message: format!("Expected token {}, got None", expected),
-                span_message: format!("Expected token {}, got None", expected),
-                span: (0, 0),
-            }),
-        }
-    }
-
-    fn unshift_expect_any(&mut self, expected: &[TokenType]) -> CompilerResult<Token> {
-        match self.peek() {
-            Some(token) if expected.contains(&token.type_) => {
-                Ok(self.unshift().unwrap().to_owned())
-            }
-            Some(token) => Err(CompilerError {
-                kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
-                message: format!("Expected one of: {:?}, got {}", expected, token),
-                span_message: format!("Expected one of: {:?}, got {}", expected, token),
-                span: self.peek().unwrap().span,
-            }),
-            None => Err(CompilerError {
-                kind: crate::lang::compiler::ErrorCode::NoTokensLeft,
-                message: format!("Expected token {:?}, got None", expected),
-                span_message: format!("Expected one of: {:?}, got None", expected),
-                span: (0, 0),
-            }),
-        }
-    }
-
-    fn unshift_if(&mut self, token_type: TokenType) -> Option<&mut Token> {
-        match self.peek() {
-            Some(token) if token.type_ == token_type => Some(self.unshift().unwrap()),
-            _ => None,
-        }
-    }
-
-    fn next_matches(&mut self, token_type: TokenType) -> bool {
-        match self.peek() {
-            Some(token) => token.type_ == token_type,
-            None => false,
-        }
-    }
-
-    fn next_matches_any(&mut self, expected: &[TokenType]) -> bool {
-        match self.peek() {
-            Some(token) => expected.contains(&token.type_),
-            None => false,
-        }
-    }
-
-    /// Returns true if the next 2 tokens in the stream match the expected token types provided.
-    /// The immediate next token must match a token type of the first element of the `expected` tuple,
-    /// the token after that must match a token type of the second element of the tuple.
-    fn next_and_after_matches(&mut self, expected: (&[TokenType], &[TokenType])) -> bool {
-        match self.peek() {
-            Some(token) if expected.0.contains(&token.type_) => match self.peek_next() {
-                Some(token_next) if expected.1.contains(&token_next.type_) => true,
-                Some(_) => false,
-                None => false,
-            },
-            Some(_) => false,
-            None => false,
-        }
     }
 }

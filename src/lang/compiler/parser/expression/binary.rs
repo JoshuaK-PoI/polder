@@ -1,45 +1,48 @@
 use crate::lang::compiler::{
     CompilerError, CompilerResult, ErrorCode,
-    iter::unshift::UnshiftExpect,
-    lexer::token::{ARITH_EXPR, ARTICLES, TokenStream, TokenType},
+    lexer::token::{ARITH_EXPR, ARTICLES, TokenType},
     parser::{
+        Parser,
         expression::{BinaryExpression, Expression, ExpressionType::Binary},
         statement::BinaryOp,
         types::is_correct_article,
     },
 };
 
-pub(super) fn binary_prefix(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
-    let article = tokens.unshift_expect_any(ARTICLES)?;
-    let operator = tokens.unshift_expect_any(ARITH_EXPR)?;
-    if !is_correct_article(&article.type_, &operator.type_) {
-        return Err(CompilerError {
-            kind: ErrorCode::WrongArticleForType,
-            message: format!("Lekker genederlandst"),
-            span_message: format!("Dat is geen correct Nederlands"),
-            span: article.span.clone(),
-        });
+impl Parser {
+    pub(super) fn binary_prefix(&mut self) -> CompilerResult<Expression> {
+        let article = self.expect_any_of(ARTICLES)?;
+        let operator = self.expect_any_of(ARITH_EXPR)?;
+
+        if !is_correct_article(&article, &operator) {
+            return Err(CompilerError {
+                kind: ErrorCode::WrongArticleForType,
+                message: format!("Lekker genederlandst"),
+                span_message: format!("Dat is geen correct Nederlands"),
+                span: article.span.clone(),
+            });
+        }
+
+        self.expect(TokenType::KWVan)?;
+
+        let lhs = self.binary()?;
+        self.expect(TokenType::KWEn)?;
+        let rhs = self.binary()?;
+        let end = rhs.span.1;
+
+        Ok(Expression {
+            expression: Binary(BinaryExpression {
+                op: match operator.type_ {
+                    TokenType::KWSom => BinaryOp::Add,
+                    TokenType::KWVerschil => BinaryOp::Subtract,
+                    TokenType::KWProduct => BinaryOp::Multiply,
+                    TokenType::KWQuotient => BinaryOp::Divide,
+                    _ => unreachable!(),
+                },
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+            }),
+            span: (article.span.0, end),
+        })
     }
-    
-    tokens.unshift_expect(TokenType::KWVan)?;
-
-    let lhs = Expression::parse(tokens, level + 1)?;
-    tokens.unshift_expect(TokenType::KWEn)?;
-    let rhs = Expression::parse(tokens, level + 1)?;
-    let end = rhs.span.1;
-
-    Ok(Expression {
-        expression: Binary(BinaryExpression {
-            op: match operator.type_ {
-                TokenType::KWSom => BinaryOp::Add,
-                TokenType::KWVerschil => BinaryOp::Subtract,
-                TokenType::KWProduct => BinaryOp::Multiply,
-                TokenType::KWQuotient => BinaryOp::Divide,
-                _ => unreachable!(),
-            },
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
-        }),
-        span: (article.span.0, end),
-    })
 }

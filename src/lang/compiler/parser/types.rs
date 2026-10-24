@@ -1,10 +1,8 @@
 use serde::Serialize;
 
-use super::super::{
-    CompilerError, ErrorCode,
-    iter::unshift::UnshiftExpect,
-    lexer::token::{TokenStream, TokenType},
-};
+use crate::lang::compiler::{lexer::token::Token, parser::Parser};
+
+use super::super::{CompilerError, ErrorCode, lexer::token::TokenType};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize)]
 pub(crate) enum PolderType {
@@ -49,62 +47,67 @@ impl std::fmt::Display for PolderType {
     }
 }
 
-pub(crate) fn parse_type(
-    tokens: &mut TokenStream,
-) -> Result<(PolderType, (usize, usize)), CompilerError> {
-    let article = tokens.unshift_expect_any(&[
-        TokenType::KWArticleDefD,
-        TokenType::KWArticleDefH,
-        TokenType::KWArticleIndef,
-    ])?;
+impl Parser {
+    pub(crate) fn parse_type(&mut self) -> Result<(PolderType, (usize, usize)), CompilerError> {
+        let article = self.expect_any_of(&[
+            TokenType::KWArticleDefD,
+            TokenType::KWArticleDefH,
+            TokenType::KWArticleIndef,
+        ])?;
 
-    let typedecl = tokens.unshift_expect(TokenType::Identifier)?;
+        let article_type = article.type_;
+        let article_span = article.span;
 
-    match typedecl.value.as_str() {
-        "getal" | "kommagetal" => {
-            if ![TokenType::KWArticleDefH, TokenType::KWArticleIndef].contains(&article.type_) {
-                Err(CompilerError {
-                    kind: ErrorCode::WrongArticleForType,
-                    message: format!("Lekker genederlandst"),
-                    span_message: format!("Dat is geen correct Nederlands"),
-                    span: article.span,
-                })
-            } else {
-                Ok((
-                    PolderType::from(typedecl.value),
-                    (article.span.0, typedecl.span.1),
-                ))
+        let typedecl = self.expect(TokenType::Identifier)?;
+
+        match typedecl.value.as_str() {
+            "getal" | "kommagetal" => {
+                if ![TokenType::KWArticleDefH, TokenType::KWArticleIndef].contains(&article_type) {
+                    Err(CompilerError {
+                        kind: ErrorCode::WrongArticleForType,
+                        message: format!("Lekker genederlandst"),
+                        span_message: format!("Dat is geen correct Nederlands"),
+                        span: article_span,
+                    })
+                } else {
+                    Ok((
+                        PolderType::from(typedecl.value.clone()),
+                        (article_span.0, typedecl.span.1),
+                    ))
+                }
             }
-        }
-        "waarheid" | "tekst" | "letter" => {
-            if ![TokenType::KWArticleDefD, TokenType::KWArticleIndef].contains(&article.type_) {
-                Err(CompilerError {
-                    kind: ErrorCode::WrongArticleForType,
-                    message: format!("Lekker genederlandst"),
-                    span_message: format!("Dat is geen correct Nederlands"),
-                    span: article.span,
-                })
-            } else {
-                Ok((
-                    PolderType::from(typedecl.value),
-                    (article.span.0, typedecl.span.1),
-                ))
+            "waarheid" | "tekst" | "letter" => {
+                if ![TokenType::KWArticleDefD, TokenType::KWArticleIndef].contains(&article_type) {
+                    Err(CompilerError {
+                        kind: ErrorCode::WrongArticleForType,
+                        message: format!("Lekker genederlandst"),
+                        span_message: format!("Dat is geen correct Nederlands"),
+                        span: article_span,
+                    })
+                } else {
+                    Ok((
+                        PolderType::from(typedecl.value.clone()),
+                        (article_span.0, typedecl.span.1),
+                    ))
+                }
             }
+            _ => Err(CompilerError {
+                kind: ErrorCode::InvalidTypeDeclaration,
+                message: format!("'{}' is geen type", typedecl.value),
+                span: typedecl.span,
+                span_message: format!("'{}' is geen bekend type ", typedecl.value),
+            }),
         }
-        _ => Err(CompilerError {
-            kind: ErrorCode::InvalidTypeDeclaration,
-            message: format!("'{}' is geen type", typedecl.value),
-            span: typedecl.span,
-            span_message: format!("'{}' is geen bekend type ", typedecl.value),
-        }),
     }
 }
 
-pub(crate) fn is_correct_article(article: &TokenType, token_type: &TokenType) -> bool {
-    match token_type {
-        TokenType::KWSom => *article == TokenType::KWArticleDefD,
-        TokenType::KWVerschil | TokenType::KWProduct | TokenType::KWQuotient => *article == TokenType::KWArticleDefH,
-        _ => unimplemented!()
+pub(crate) fn is_correct_article(article: &Token, token_type: &Token) -> bool {
+    match token_type.type_ {
+        TokenType::KWSom => article.type_ == TokenType::KWArticleDefD,
+        TokenType::KWVerschil | TokenType::KWProduct | TokenType::KWQuotient => {
+            article.type_ == TokenType::KWArticleDefH
+        }
+        _ => unimplemented!(),
     }
 }
 

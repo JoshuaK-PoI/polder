@@ -2,20 +2,18 @@ pub(crate) mod binary;
 pub(crate) mod literal;
 
 use crate::lang::compiler::{
-    CompilerError, CompilerResult, ErrorCode,
-    iter::unshift::{Unshift, UnshiftExpect},
-    lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenStream, TokenType},
+    CompilerResult,
+    lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenType},
     parser::{
+        Parser,
         expression::ExpressionType::{Binary, Unary},
         statement::{BinaryOp, UnaryOp},
-        types::{PolderType, parse_type},
+        types::PolderType,
     },
 };
 
 use literal::{Literal, literal};
 use serde::Serialize;
-
-const MAX_RECURSION_DEPTH: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct Expression {
@@ -65,117 +63,80 @@ impl Expression {
     pub(crate) fn make(expression: ExpressionType, span: (usize, usize)) -> Self {
         Expression { expression, span }
     }
+}
 
-    pub(crate) fn parse(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
-        if level >= MAX_RECURSION_DEPTH {
-            let token = tokens.unshift().unwrap();
-            Err(CompilerError {
-                kind: ErrorCode::ExceededExpressionRecursion,
-                message: format!("Maximale recursiediepte bereikt"),
-                span_message: format!("Deze expressie recurseert te ver"),
-                span: token.span,
-            })
-        } else {
-            Expression::unary(tokens, level)
-        }
+impl Parser {
+    pub(super) fn expression(&mut self) -> CompilerResult<Expression> {
+        self.comparison()
     }
 
-    fn unary(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
-        Expression::binary(tokens, level)
-    }
+    fn comparison(&mut self) -> CompilerResult<Expression> {
+        let lhs = self.binary()?;
+        let negate = self.next_is_then_unshift(TokenType::KWNiet);
 
-    fn binary(tokens: &mut TokenStream, level: usize) -> CompilerResult<Expression> {
-        let lhs = if tokens.next_and_after_matches((ARTICLES, ARITH_EXPR)) {
-            binary::binary_prefix(tokens, level)
-        } else {
-            Expression::type_declaration(tokens)
-        }?;
+        if self.next_is_any_of(BINARY_OPERATORS) {
+            let token_type = self.next().type_;
+            self.expect(TokenType::KWIs)?;
+            self.expect(if token_type == TokenType::KWGelijk {
+                TokenType::KWAan
+            } else {
+                TokenType::KWDan
+            })?;
 
-        // Note: this may look stupid, but the `if` statement here is necessary
-        // to prevent tokens from being mutably borrowed more than once in the
-        // block scope of this function.
-        let is_negation = if tokens.unshift_if(TokenType::KWNiet).is_some() {
-            true
-        } else {
-            false
-        };
-
-        if tokens.next_matches_any(BINARY_OPERATORS) {
-            let op = Expression::parse_binary_op(tokens)?;
-            let rhs = Expression::parse(tokens, level + 1)?;
+            let rhs = self.binary()?;
             let span = (lhs.span.0, rhs.span.1);
-
-            let expr = Expression {
+            let expression = Expression {
                 expression: Binary(BinaryExpression {
-                    op,
+                    op: token_type.into(),
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
                 }),
                 span,
             };
 
-            if is_negation {
-                Ok(Expression {
+            if negate {
+                return Ok(Expression {
                     expression: Unary(UnaryExpression {
                         op: UnaryOp::Negation,
-                        expr: Box::new(expr),
+                        expr: Box::new(expression),
                     }),
                     span,
-                })
-            } else {
-                Ok(expr)
+                });
             }
+
+            return Ok(expression);
+        }
+
+        if negate {
+            todo!("Negate without a comparison to make");
+        }
+
+        Ok(lhs)
+    }
+
+    fn binary(&mut self) -> CompilerResult<Expression> {
+        if self.next_is_any_of(ARTICLES) && self.next_nth_is_any_of(2, ARITH_EXPR) {
+            self.binary_prefix()
         } else {
-            if is_negation {
-                Err(CompilerError {
-                    kind: ErrorCode::InvalidExpression,
-                    message: format!("Onverwacht {}", TokenType::KWNiet),
-                    span_message: format!("Verwachtte geen {} hier", TokenType::KWNiet),
-                    span: tokens.unshift().unwrap().span,
-                })
-            } else {
-                Ok(lhs)
-            }
+            self.type_declaration()
         }
     }
 
-    fn type_declaration(tokens: &mut TokenStream) -> CompilerResult<Expression> {
-        if tokens.next_matches_any(LITERALS) {
-            let token = tokens.unshift().unwrap();
-            literal(token)
-        } else if tokens.next_matches(TokenType::Identifier) {
-            let identifier = tokens.unshift().unwrap();
+    fn type_declaration(&mut self) -> CompilerResult<Expression> {
+        if self.next_is_any_of(LITERALS) {
+            literal(self.next().clone())
+        } else if self.next_is(TokenType::Identifier) {
+            let identifier = self.next();
             Ok(Expression {
                 expression: ExpressionType::Identifier(identifier.value.clone()),
                 span: identifier.span,
             })
         } else {
-            let type_ = parse_type(tokens)?;
+            let type_ = self.parse_type()?;
             Ok(Expression {
                 expression: ExpressionType::Type(type_.0),
                 span: type_.1,
             })
-        }
-    }
-
-    fn parse_binary_op(tokens: &mut TokenStream) -> CompilerResult<BinaryOp> {
-        match tokens.unshift().unwrap().type_ {
-            TokenType::KWKleiner => {
-                tokens.unshift_expect(TokenType::KWIs)?;
-                tokens.unshift_expect(TokenType::KWDan)?;
-                Ok(BinaryOp::Less)
-            }
-            TokenType::KWGroter => {
-                tokens.unshift_expect(TokenType::KWIs)?;
-                tokens.unshift_expect(TokenType::KWDan)?;
-                Ok(BinaryOp::Greater)
-            }
-            TokenType::KWGelijk => {
-                tokens.unshift_expect(TokenType::KWIs)?;
-                tokens.unshift_expect(TokenType::KWAan)?;
-                Ok(BinaryOp::Equal)
-            }
-            _ => unreachable!(),
         }
     }
 }
