@@ -4,7 +4,12 @@ use crate::lang::compiler::{
     lexer::token::{KEYWORDS, LITERALS, Token},
     parser::{
         Parser, ParserMode,
-        expression::{BinaryExpression, ExpressionType, UnaryExpression, literal::literal},
+        expression::{
+            BinaryExpression,
+            ExpressionType::{self, ArrayDecl},
+            UnaryExpression,
+            literal::literal,
+        },
     },
 };
 
@@ -245,7 +250,7 @@ impl Parser {
                     },
                 ))
             }
-            ExpressionType::Type(type_) => {
+            ExpressionType::Type(ref type_) => {
                 if is_indefinite_article {
                     if is_const {
                         return Err(CompilerError {
@@ -283,49 +288,100 @@ impl Parser {
                     ));
                 }
 
-                let expr = self.expression()?;
-                let expr = match expr.expression {
-                    ExpressionType::Literal(ref lit) => {
-                        if type_ != Into::<PolderType>::into(lit) {
-                            Err(CompilerError {
-                                kind: ErrorCode::InvalidTypeDeclaration,
+                match *type_ {
+                    PolderType::Array(_) => {
+                        // Inferring array type from its inner expressions
+                        let mut elements: Vec<Expression> = Vec::new();
+                        
+                        loop {
+                            elements.push(self.expression()?);
+
+                            if self.next_is_then_unshift(TokenType::Comma) {
+                                continue;
+                            }
+
+                            if self.next_is_then_unshift(TokenType::KWEn) {
+                                // One last element
+                                elements.push(self.expression()?);
+                                break;
+                            }
+
+                            return Err(CompilerError {
+                                kind: ErrorCode::InvalidExpression,
                                 message: format!(
-                                    "Een {} kan niet worden toegewezen aan een {}",
-                                    Into::<PolderType>::into(lit),
-                                    type_,
+                                    "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
+                                    self.peek().unwrap().type_
                                 ),
                                 span_message: format!(
-                                    "Ik verwachtte hier een {}, maar {} is een {}.",
-                                    type_,
-                                    identifier.value,
-                                    Into::<PolderType>::into(lit)
+                                    "Mogelijk ben je 'en' vergeten vóór het laatste element."
                                 ),
-                                span: expr.span,
-                            })
-                        } else {
-                            Ok(expr)
+                                span: self.peek().unwrap().span,
+                            });
                         }
-                    }
-                    other_type => Err(CompilerError {
-                        kind: ErrorCode::InvalidExpression,
-                        message: format!(
-                            "Verwachtte een literal expression maar zag een {}",
-                            other_type
-                        ),
-                        span_message: "Verwachtte een literal expression".to_string(),
-                        span: expr.span,
-                    }),
-                }?;
 
-                self.expect(TokenType::KWZijn)?;
-                Ok(Statement::VariableDeclaration(
-                    VariableDeclarationStatement {
-                        identifier: identifier.value,
-                        value_expression: expr,
-                        is_const,
-                        declared_at: identifier.span,
-                    },
-                ))
+                        let expr_span_start = elements.get(0).unwrap().span.0;
+                        let expr_span_end = elements.get(elements.len() - 1).unwrap().span.1;
+
+                        self.expect(TokenType::KWZijn)?;
+
+                        Ok(Statement::VariableDeclaration(
+                            VariableDeclarationStatement {
+                                identifier: identifier.value,
+                                value_expression: Expression {
+                                    expression: ArrayDecl(elements),
+                                    span: (expr_span_start, expr_span_end),
+                                },
+                                is_const,
+                                declared_at: identifier.span,
+                            },
+                        ))
+                    }
+                    _ => {
+                        let expr = self.expression()?;
+                        let expr = match expr.expression {
+                            ExpressionType::Literal(ref lit) => {
+                                if *type_ != Into::<PolderType>::into(lit) {
+                                    Err(CompilerError {
+                                        kind: ErrorCode::InvalidTypeDeclaration,
+                                        message: format!(
+                                            "Een {} kan niet worden toegewezen aan een {}",
+                                            Into::<PolderType>::into(lit),
+                                            type_,
+                                        ),
+                                        span_message: format!(
+                                            "Ik verwachtte hier een {}, maar {} is een {}.",
+                                            type_,
+                                            identifier.value,
+                                            Into::<PolderType>::into(lit)
+                                        ),
+                                        span: expr.span,
+                                    })
+                                } else {
+                                    Ok(expr)
+                                }
+                            }
+                            other_type => Err(CompilerError {
+                                kind: ErrorCode::InvalidExpression,
+                                message: format!(
+                                    "Verwachtte een literal expression maar zag een {}",
+                                    other_type
+                                ),
+                                span_message: "Verwachtte een literal expression".to_string(),
+                                span: expr.span,
+                            }),
+                        }?;
+
+                        self.expect(TokenType::KWZijn)?;
+                        Ok(Statement::VariableDeclaration(
+                            VariableDeclarationStatement {
+                                identifier: identifier.value,
+                                value_expression: expr,
+                                is_const,
+                                declared_at: identifier.span,
+                            },
+                        ))
+                    }
+                }
             }
             _expression => Err(CompilerError {
                 kind: ErrorCode::IndefiniteCannotHaveValue,

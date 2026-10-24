@@ -2,8 +2,6 @@ use std::iter::Peekable;
 
 use peekable_next::PeekableNext;
 
-use crate::lang::compiler::CompilerResult;
-
 /// Allows vector elements to be taken from the front of the vector.
 /// It is a safe wrapper for:
 /// ```rust
@@ -45,13 +43,4 @@ where
             self.next()
         }
     }
-}
-
-pub(crate) trait UnshiftExpect<T, K, E> {
-    fn unshift_expect(&mut self, expected: K) -> CompilerResult<T>;
-    fn unshift_expect_any(&mut self, expected: &[K]) -> CompilerResult<T>;
-    fn unshift_if(&mut self, expected: K) -> Option<&mut T>;
-    fn next_matches(&mut self, expected: K) -> bool;
-    fn next_matches_any(&mut self, expected: &[K]) -> bool;
-    fn next_and_after_matches(&mut self, expected: (&[K], &[K])) -> bool;
 }

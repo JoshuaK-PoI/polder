@@ -1,14 +1,14 @@
 use crate::{
     io::Io,
-    lang::{
-        compiler::parser::expression::literal::Literal,
-        interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
+    lang::interpreter::{
+        runtime_error::{RuntimeError, RuntimeErrorKind},
+        store::StoreValue,
     },
     runtime_error,
 };
 
 pub(super) fn print(
-    literal: Vec<Literal>,
+    literal: Vec<StoreValue>,
     add_newline: bool,
     io: &mut Io,
 ) -> Result<(), RuntimeError> {

@@ -6,7 +6,7 @@ use crate::lang::compiler::{
     lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenType},
     parser::{
         Parser,
-        expression::ExpressionType::{Binary, Unary},
+        expression::ExpressionType::{Binary, FunctionCall, Unary},
         statement::{BinaryOp, UnaryOp},
         types::PolderType,
     },
@@ -23,6 +23,8 @@ pub(crate) struct Expression {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) enum ExpressionType {
+    ArrayDecl(Vec<Expression>),
+    FunctionCall(FunctionCallExpression),
     Literal(Literal),
     Identifier(String),
     Type(PolderType),
@@ -43,6 +45,12 @@ pub(crate) struct UnaryExpression {
     pub(crate) expr: Box<Expression>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct FunctionCallExpression {
+    pub(crate) function_name: String,
+    pub(crate) identifier: String,
+}
+
 impl std::fmt::Display for ExpressionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -54,6 +62,8 @@ impl std::fmt::Display for ExpressionType {
                 ExpressionType::Literal(_) => "Literal".to_string(),
                 ExpressionType::Identifier(_) => "Identifier".to_string(),
                 ExpressionType::Type(_) => "Type".to_string(),
+                ExpressionType::ArrayDecl(_) => "ArrayDecl".to_string(),
+                ExpressionType::FunctionCall(_) => "FunctionCall".to_string(),
             }
         )
     }
@@ -115,11 +125,38 @@ impl Parser {
     }
 
     fn binary(&mut self) -> CompilerResult<Expression> {
-        if self.next_is_any_of(ARTICLES) && self.next_nth_is_any_of(2, ARITH_EXPR) {
-            self.binary_prefix()
+        if self.next_is_any_of(ARTICLES) {
+            if self.next_nth_is_any_of(2, ARITH_EXPR) {
+                self.binary_prefix()
+            } else if self.next_nth_is(3, TokenType::KWVan)
+                && self.next_nth_is(4, TokenType::Identifier)
+            {
+                self.function_call()
+            } else {
+                self.type_declaration()
+            }
         } else {
             self.type_declaration()
         }
+    }
+
+    fn function_call(&mut self) -> CompilerResult<Expression> {
+        let start = self.expect_any_of(ARTICLES)?.span.0;
+
+        let function_name = self.expect(TokenType::Identifier)?.value;
+        self.expect(TokenType::KWVan)?;
+
+        let identifier = self.expect(TokenType::Identifier)?;
+        let end = identifier.span.1;
+        let identifier = identifier.value;
+
+        Ok(Expression {
+            expression: FunctionCall(FunctionCallExpression {
+                function_name,
+                identifier,
+            }),
+            span: (start, end),
+        })
     }
 
     fn type_declaration(&mut self) -> CompilerResult<Expression> {

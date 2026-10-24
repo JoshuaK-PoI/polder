@@ -1,16 +1,16 @@
 use serde::Serialize;
 
-use crate::lang::compiler::{lexer::token::Token, parser::Parser};
-
 use super::super::{CompilerError, ErrorCode, lexer::token::TokenType};
+use crate::lang::compiler::{CompilerResult, lexer::token::Token, parser::Parser};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub(crate) enum PolderType {
     Boolean,
     String,
     Integer,
     Float,
     Char,
+    Array(Option<Box<PolderType>>),
 }
 
 impl From<String> for PolderType {
@@ -26,16 +26,36 @@ impl From<String> for PolderType {
     }
 }
 
+impl PolderType {
+    fn from_pluralized(pluralized_value: String) -> Option<PolderType> {
+        match pluralized_value.as_str() {
+            "getallen" => Some(PolderType::Integer),
+            "kommagetallen" => Some(PolderType::Float),
+            "waarheden" => Some(PolderType::Boolean),
+            "teksten" => Some(PolderType::String),
+            "letters" => Some(PolderType::Char),
+            _ => None,
+        }
+    }
+}
 impl From<&PolderType> for String {
     fn from(value: &PolderType) -> Self {
         format!(
             "{}",
             match value {
-                PolderType::Boolean => "waarheid",
-                PolderType::String => "tekst",
-                PolderType::Integer => "getal",
-                PolderType::Float => "kommagetal",
-                PolderType::Char => "karakter",
+                PolderType::Boolean => format!("waarheid"),
+                PolderType::String => format!("tekst"),
+                PolderType::Integer => format!("getal"),
+                PolderType::Float => format!("kommagetal"),
+                PolderType::Char => format!("karakter"),
+                PolderType::Array(boxed_type) => format!(
+                    "[{}]",
+                    if boxed_type.is_some() {
+                        boxed_type.as_ref().unwrap().to_string()
+                    } else {
+                        "onbekend".to_string()
+                    }
+                ),
             }
         )
     }
@@ -48,7 +68,7 @@ impl std::fmt::Display for PolderType {
 }
 
 impl Parser {
-    pub(crate) fn parse_type(&mut self) -> Result<(PolderType, (usize, usize)), CompilerError> {
+    pub(crate) fn parse_type(&mut self) -> CompilerResult<(PolderType, (usize, usize))> {
         let article = self.expect_any_of(&[
             TokenType::KWArticleDefD,
             TokenType::KWArticleDefH,
@@ -91,12 +111,47 @@ impl Parser {
                     ))
                 }
             }
+            "lijst" => {
+                if ![TokenType::KWArticleDefD, TokenType::KWArticleIndef].contains(&article_type) {
+                    Err(CompilerError {
+                        kind: ErrorCode::WrongArticleForType,
+                        message: format!("Lekker genederlandst"),
+                        span_message: format!("Dat is geen correct Nederlands"),
+                        span: article_span,
+                    })
+                } else {
+                    self.parse_array_type((article_span.0, typedecl.span.1))
+                }
+            }
             _ => Err(CompilerError {
                 kind: ErrorCode::InvalidTypeDeclaration,
                 message: format!("'{}' is geen type", typedecl.value),
                 span: typedecl.span,
                 span_message: format!("'{}' is geen bekend type ", typedecl.value),
             }),
+        }
+    }
+
+    fn parse_array_type(
+        &mut self,
+        span: (usize, usize),
+    ) -> CompilerResult<(PolderType, (usize, usize))> {
+        self.expect(TokenType::KWVan)?;
+
+        if self.next_is(TokenType::Identifier) {
+            let inner_type = self.next();
+            if let Some(inner_type) = PolderType::from_pluralized(inner_type.value.clone()) {
+                Ok((PolderType::Array(Some(Box::new(inner_type))), span))
+            } else {
+                Err(CompilerError {
+                    kind: ErrorCode::InvalidTypeDeclaration,
+                    message: format!("'{}' is geen type", inner_type.value),
+                    span: inner_type.span,
+                    span_message: format!("'{}' is geen bekend type ", inner_type.value),
+                })
+            }
+        } else {
+            Ok((PolderType::Array(None), span))
         }
     }
 }
@@ -114,7 +169,9 @@ pub(crate) fn is_correct_article(article: &Token, token_type: &Token) -> bool {
 impl PolderType {
     pub(crate) fn article_for(type_: &Self) -> TokenType {
         match type_ {
-            PolderType::Boolean | PolderType::Char | PolderType::String => TokenType::KWArticleDefD,
+            PolderType::Boolean | PolderType::Char | PolderType::String | PolderType::Array(_) => {
+                TokenType::KWArticleDefD
+            }
             PolderType::Integer | PolderType::Float => TokenType::KWArticleDefH,
         }
     }

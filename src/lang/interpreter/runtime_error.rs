@@ -58,6 +58,7 @@ pub(crate) enum RuntimeErrorKind {
     NoInputGiven,
     DivideByZero,
     CannotCalculateNonNumeric,
+    CannotOperateOnArray,
     UnsupportedFunction,
     IOError,
 }
@@ -76,6 +77,7 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::CannotCalculateNonNumeric => {
                 "Rekenen kan alleen met getallen of kommagetallen".to_string()
             }
+            RuntimeErrorKind::CannotOperateOnArray => "Deze operatie is niet geldig met lijsten".to_string(),
             RuntimeErrorKind::UnsupportedFunction => "Functie (nog) niet ondersteund".to_string(),
             RuntimeErrorKind::IOError => "I/O Error".to_string(),
         }

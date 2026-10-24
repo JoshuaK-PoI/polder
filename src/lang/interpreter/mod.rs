@@ -21,7 +21,7 @@ use crate::{
         },
         interpreter::{
             runtime_error::{RuntimeError, RuntimeErrorKind},
-            store::Variable,
+            store::{StoreValue, Variable},
         },
     },
     logger::PolderError,
@@ -70,18 +70,18 @@ impl Interpreter {
         &mut self,
         declaration: VariableDeclarationStatement,
     ) -> Result<(), RuntimeError> {
-        let (literal, expression_type) = match &declaration.value_expression.expression {
+        let (store_value, expression_type) = match &declaration.value_expression.expression {
             ExpressionType::Type(type_) => (None, type_.to_owned()),
             _expr => {
                 let expr_result = self.interpret_expression(&declaration.value_expression)?;
-                let expression_result_type: PolderType = (&expr_result).into();
+                let expression_result_type: PolderType = expr_result.clone().into();
                 (Some(expr_result), expression_result_type)
             }
         };
 
         let variable = Variable {
             declared_at: declaration.declared_at,
-            value: literal,
+            value: store_value,
             type_: expression_type,
             is_const: declaration.is_const,
         };
@@ -95,21 +95,19 @@ impl Interpreter {
         &mut self,
         assignment: VariableAssignmentStatement,
     ) -> Result<(), RuntimeError> {
-        let expression = self.interpret_expression(&assignment.expression)?;
-        self.store.write(
-            assignment.identifier,
-            &expression,
-            assignment.expression.span,
-        )?;
+        let literal = self.interpret_expression(&assignment.expression)?;
+        self.store
+            .write(assignment.identifier, &literal, assignment.expression.span)?;
         Ok(())
     }
 
-    fn interpret_expression(&self, expression: &Expression) -> Result<Literal, RuntimeError> {
+    fn interpret_expression(&self, expression: &Expression) -> Result<StoreValue, RuntimeError> {
         match &expression.expression {
-            ExpressionType::Literal(lit) => Ok(lit.clone()),
+            ExpressionType::Literal(lit) => Ok(StoreValue::Literal(lit.clone())),
             ExpressionType::Unary(un) => self.interpret_unary_expression(un),
             ExpressionType::Binary(bin) => self.interpret_binary_expression(bin),
             ExpressionType::Identifier(ident) => self.get_from_store(ident, expression.span),
+            ExpressionType::ArrayDecl(arr) => self.interpret_array(arr),
             _ => Err(runtime_error!(
                 expression.span,
                 RuntimeErrorKind::UnsupportedFunction
@@ -120,33 +118,47 @@ impl Interpreter {
     fn interpret_unary_expression(
         &self,
         expression: &UnaryExpression,
-    ) -> Result<Literal, RuntimeError> {
-        let expr = self.interpret_expression(&expression.expr)?;
+    ) -> Result<StoreValue, RuntimeError> {
+        let store_value = self.interpret_expression(&expression.expr)?;
 
         match expression.op {
             UnaryOp::Increment => {
-                self.check_numeric(&expr, &expression.expr)?;
-                Ok(expr + Literal::Integer(1))
+                self.check_numeric(&store_value, &expression.expr)?;
+                StoreValue::literal(store_value, expression.expr.span, |v| {
+                    v + Literal::Integer(1)
+                })
             }
             UnaryOp::Decrement => {
-                self.check_numeric(&expr, &expression.expr)?;
-                Ok(expr - Literal::Integer(1))
+                self.check_numeric(&store_value, &expression.expr)?;
+                StoreValue::literal(store_value, expression.expr.span, |v| {
+                    v - Literal::Integer(1)
+                })
             }
-            UnaryOp::Negation => Ok(!expr),
+            UnaryOp::Negation => StoreValue::literal(store_value, expression.expr.span, |v| !v),
         }
     }
 
     fn interpret_binary_expression(
         &self,
         expression: &BinaryExpression,
-    ) -> Result<Literal, RuntimeError> {
+    ) -> Result<StoreValue, RuntimeError> {
         let lhs = self.interpret_expression(&expression.lhs)?;
         let rhs = self.interpret_expression(&expression.rhs)?;
 
         self.check_numeric(&lhs, &expression.lhs)?;
         self.check_numeric(&rhs, &expression.rhs)?;
 
-        match expression.op {
+        let lhs = match lhs {
+            StoreValue::Literal(l) => l,
+            _ => unreachable!(),
+        };
+
+        let rhs = match rhs {
+            StoreValue::Literal(l) => l,
+            _ => unreachable!(),
+        };
+
+        Ok(StoreValue::Literal(match expression.op {
             BinaryOp::Add => Ok(lhs + rhs),
             BinaryOp::Subtract => Ok(lhs - rhs),
             BinaryOp::Multiply => Ok(lhs * rhs),
@@ -167,7 +179,7 @@ impl Interpreter {
             BinaryOp::Less => Ok(Literal::Boolean(lhs < rhs)),
             BinaryOp::Greater => Ok(Literal::Boolean(lhs > rhs)),
             BinaryOp::Equal => Ok(Literal::Boolean(lhs == rhs)),
-        }
+        }?))
     }
 
     fn interpret_intrinsic(
@@ -177,13 +189,13 @@ impl Interpreter {
     ) -> Result<(), RuntimeError> {
         match intrinsic.intrinsic {
             Intrinsics::Print | Intrinsics::Write => {
-                let literal: Vec<Literal> = intrinsic
+                let store_value: Vec<StoreValue> = intrinsic
                     .args
                     .clone()
                     .into_iter()
                     .map(|arg| self.interpret_expression(&arg))
                     .collect::<Result<_, _>>()?;
-                intrinsic::print(literal, intrinsic.intrinsic == Intrinsics::Print, io)
+                intrinsic::print(store_value, intrinsic.intrinsic == Intrinsics::Print, io)
             }
             Intrinsics::Readline => {
                 let (identifier, span) = match intrinsic.args.get(0) {
@@ -214,6 +226,18 @@ impl Interpreter {
                 Ok(())
             }
         }
+    }
+
+    fn interpret_array(&self, array: &Vec<Expression>) -> Result<StoreValue, RuntimeError> {
+        let mut result = Vec::new();
+        for expression in array {
+            result.push(StoreValue::unwrap_literal(
+                self.interpret_expression(expression)?,
+                expression.span,
+            )?)
+        }
+
+        Ok(StoreValue::Array(result))
     }
 
     fn interpret_if_statement(
@@ -256,13 +280,16 @@ impl Interpreter {
         Ok(())
     }
 
-    fn is_truthy(&self, condition: &Literal) -> bool {
+    fn is_truthy(&self, condition: &StoreValue) -> bool {
         match condition {
-            Literal::Boolean(b) => *b,
-            Literal::Char(c) => *c != '\0',
-            Literal::Float(f) => *f != 0f64,
-            Literal::Integer(i) => *i != 0,
-            Literal::String(s) => !s.is_empty(),
+            StoreValue::Literal(literal) => match literal {
+                Literal::Boolean(b) => *b,
+                Literal::Char(c) => *c != '\0',
+                Literal::Float(f) => *f != 0f64,
+                Literal::Integer(i) => *i != 0,
+                Literal::String(s) => !s.is_empty(),
+            },
+            StoreValue::Array(elements) => !elements.is_empty(),
         }
     }
 
@@ -270,7 +297,7 @@ impl Interpreter {
         &self,
         variable_identifier: &String,
         span: (usize, usize),
-    ) -> Result<Literal, RuntimeError> {
+    ) -> Result<StoreValue, RuntimeError> {
         match self.store.get(variable_identifier) {
             Some(variable) => match variable.get_value() {
                 Some(value) => Ok(value.to_owned()),
@@ -288,14 +315,21 @@ impl Interpreter {
         }
     }
 
-    fn check_numeric(&self, lit: &Literal, expr: &Expression) -> Result<(), RuntimeError> {
-        if ![PolderType::Integer, PolderType::Float].contains(&(lit).into()) {
-            Err(runtime_error!(
+    fn check_numeric(
+        &self,
+        store_value: &StoreValue,
+        expr: &Expression,
+    ) -> Result<(), RuntimeError> {
+        match store_value {
+            StoreValue::Literal(lit)
+                if ![PolderType::Integer, PolderType::Float].contains(&(lit).into()) =>
+            {
+                Ok(())
+            }
+            _ => Err(runtime_error!(
                 expr.span,
                 RuntimeErrorKind::CannotCalculateNonNumeric
-            ))
-        } else {
-            Ok(())
+            )),
         }
     }
 }

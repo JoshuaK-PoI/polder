@@ -54,6 +54,16 @@ impl Parser {
         }
     }
 
+    fn next_nth_is(&self, lookahead: isize, token_type: TokenType) -> bool {
+        match self
+            .tokens
+            .get(std::cmp::max(0, self.position as isize + (lookahead - 1)) as usize)
+        {
+            Some(token) if token.type_ == token_type => true,
+            _ => false,
+        }
+    }
+
     fn next_nth_is_any_of(&self, lookahead: isize, token_types: &[TokenType]) -> bool {
         match self
             .tokens
@@ -92,8 +102,8 @@ impl Parser {
             Some(token) if token_types.contains(&token.type_) => Ok(self.next()),
             Some(token) => Err(CompilerError {
                 kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
-                message: format!("Expected one of: {:?}, got {}", token_types, token),
-                span_message: format!("Expected one of: {:?}, got {}", token_types, token),
+                message: format!("Expected one of: {:?}, got {}", token_types, token.value),
+                span_message: format!("Expected one of: {:?}, got {}", token_types, token.value),
                 span: self.peek().unwrap().span,
             }),
             None => unreachable!(),
