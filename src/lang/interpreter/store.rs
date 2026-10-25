@@ -333,6 +333,10 @@ impl Store {
             PolderType::Array(_) => unimplemented!("Marshalling into array type"),
         }
     }
+    
+    pub(crate) fn delete(&mut self, identifier: &String) -> () {
+        self.variables.remove(identifier);
+    }
 }
 
 fn try_bool(input: String) -> Result<StoreValue, RuntimeError> {

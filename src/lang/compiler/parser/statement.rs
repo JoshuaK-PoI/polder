@@ -24,6 +24,7 @@ pub(crate) enum Statement {
     Intrinsic(IntrinsicStatement),
     If(IfStatement),
     While(WhileStatement),
+    Foreach(ForeachStatement),
 }
 
 impl From<&Statement> for String {
@@ -70,6 +71,15 @@ pub(crate) struct IfStatement {
 pub(crate) struct WhileStatement {
     pub(crate) predicate: Expression,
     pub(crate) then_statements: Vec<Statement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub(crate) struct ForeachStatement {
+    pub(crate) list_name: String,
+    pub(crate) element_binding: String,
+    pub(crate) index_binding: Option<String>,
+    pub(crate) statements: Vec<Statement>,
+    pub(crate) span: (usize, usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -119,6 +129,7 @@ impl Parser {
                 TokenType::KWAls => self.if_statement(),
                 TokenType::KWZolang => self.while_statement(),
                 TokenType::KWVoeg => self.method_statement(),
+                TokenType::KWVoor => self.foreach_statement(),
                 TokenType::KWKlaar => {
                     let start = self.expect(TokenType::KWKlaar)?.span.0;
                     self.expect(TokenType::KWIs)?;
@@ -763,6 +774,42 @@ impl Parser {
         Ok(Statement::While(WhileStatement {
             predicate,
             then_statements,
+        }))
+    }
+
+    fn foreach_statement(&mut self) -> CompilerResult<Statement> {
+        let start = self.expect(TokenType::KWVoor)?.span.0;
+        self.expect(TokenType::KWElke)?;
+
+        let element_binding = self.expect(TokenType::Identifier)?.value;
+        let index_binding = if self.next_is_then_unshift(TokenType::KWEn) {
+            Some(self.expect(TokenType::Identifier)?.value)
+        } else {
+            None
+        };
+
+        self.expect(TokenType::KWIn)?;
+        let list = self.expect(TokenType::Identifier)?;
+        let list_name = list.value;
+        let end = list.span.1;
+
+        self.expect(TokenType::Colon)?;
+
+        let mut statements = Vec::new();
+        while !self.next_is(TokenType::KWKlaar) {
+            statements.push(self.stmt()?);
+        }
+
+        self.expect(TokenType::KWKlaar)?;
+        self.expect(TokenType::KWIs)?;
+        self.expect(TokenType::KWKees)?;
+
+        Ok(Statement::Foreach(ForeachStatement {
+            list_name,
+            element_binding,
+            index_binding,
+            statements,
+            span: (start, end),
         }))
     }
 

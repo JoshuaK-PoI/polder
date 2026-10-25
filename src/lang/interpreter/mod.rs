@@ -15,8 +15,9 @@ use crate::{
                 },
                 intrinsic::Intrinsics,
                 statement::{
-                    BinaryOp, IfStatement, IntrinsicStatement, Statement, UnaryOp,
-                    VariableAssignmentStatement, VariableDeclarationStatement, WhileStatement,
+                    BinaryOp, ForeachStatement, IfStatement, IntrinsicStatement, Statement,
+                    UnaryOp, VariableAssignmentStatement, VariableDeclarationStatement,
+                    WhileStatement,
                 },
                 types::PolderType,
             },
@@ -64,6 +65,9 @@ impl Interpreter {
             Statement::If(if_statement) => self.interpret_if_statement(if_statement, io),
             Statement::While(while_statement) => {
                 self.interpret_while_statement(while_statement, io)
+            }
+            Statement::Foreach(foreach_statement) => {
+                self.interpret_foreach_statement(foreach_statement, io)
             }
         }
     }
@@ -381,6 +385,90 @@ impl Interpreter {
                 RuntimeErrorKind::CannotCalculateNonNumeric,
                 format!(""),
                 format!("Waarde '{}' is een {}", store_value, store_value.get_type())
+            )),
+        }
+    }
+
+    fn interpret_foreach_statement(
+        &mut self,
+        foreach_statement: ForeachStatement,
+        io: &mut Io<'_>,
+    ) -> Result<(), RuntimeError> {
+        let variable = match self.store.get(foreach_statement.list_name.as_str()) {
+            Some(var) => Ok(var),
+            None => Err(runtime_error!(
+                foreach_statement.span,
+                RuntimeErrorKind::UndefinedVariable,
+                foreach_statement.list_name
+            )),
+        }?
+        .clone();
+
+        match variable.type_ {
+            PolderType::Array(_) => {
+                let (store_value, span) = match variable.get_value() {
+                    Some((value, span)) => Ok((value, span)),
+                    None => Err(runtime_error!(
+                        foreach_statement.span,
+                        RuntimeErrorKind::VariableHasNoValue,
+                        format!(
+                            "Kan geen 'voor elke' lus uitvoeren voor een ongeïnitialiseerde variabele"
+                        )
+                    )),
+                }?;
+
+                match store_value {
+                    StoreValue::Array(elements) => {
+                        for (index, element) in elements.iter().enumerate() {
+                            self.store.declare(
+                                foreach_statement.element_binding.clone(),
+                                Variable {
+                                    declared_at: foreach_statement.span,
+                                    type_: element.into(),
+                                    value: Some((StoreValue::Literal(element.clone()), *span)),
+                                    is_const: true,
+                                },
+                                *span,
+                            )?;
+
+                            if foreach_statement.index_binding.is_some() {
+                                self.store.declare(
+                                    foreach_statement.index_binding.as_ref().unwrap().clone(),
+                                    Variable {
+                                        declared_at: foreach_statement.span,
+                                        type_: PolderType::Integer,
+                                        value: Some((
+                                            StoreValue::Literal(Literal::Integer(index as i64)),
+                                            foreach_statement.span,
+                                        )),
+                                        is_const: true,
+                                    },
+                                    *span,
+                                )?;
+                            }
+
+                            foreach_statement.statements.iter().try_for_each(|stmt| {
+                                self.interpret_statement(stmt.to_owned(), io)
+                            })?;
+
+                            self.store.delete(&foreach_statement.element_binding);
+
+                            if foreach_statement.index_binding.is_some() {
+                                self.store
+                                    .delete(&foreach_statement.index_binding.as_ref().unwrap())
+                            }
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+
+                Ok(())
+            }
+            _ => Err(runtime_error!(
+                foreach_statement.span,
+                RuntimeErrorKind::MismatchedType,
+                foreach_statement.list_name,
+                format!("'Voor elke' is niet geldig voor een {}", variable.type_)
             )),
         }
     }

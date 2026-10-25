@@ -1,0 +1,15 @@
+Laat gasten de lijst van "Anna", "Piet" en "Klaas" zijn.
+
+Voor elke naam in gasten:
+  Schrijf "Deze gast is aanwezig: " op.
+  Druk naam af.
+Klaar is Kees.
+
+
+P.S. Met index:
+Voor elke naam en index in gasten:
+  Schrijf "Gast " op.
+  Schrijf de som van index en 1 op.
+  Schrijf " is " op.
+  Druk naam af.
+Klaar is Kees.
