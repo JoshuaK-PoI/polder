@@ -1,0 +1,18 @@
+P.S. Je kunt meerdere elementen tegelijk aan een lijst toevoegen.
+
+Laat namen de lijst van "Anna", "Piet" en "Klaas" zijn.
+Voeg "Alex", "Bart" en "Casper" aan namen toe.
+Druk namen af.
+
+
+P.S. Je kunt ook twee lijsten samenvoegen als ze van hetzelfde type zijn.
+
+Laat namen_deel1 de lijst van "Anna", "Piet" en "Klaas" zijn.
+Laat namen_deel2 de lijst van "Alex", "Bart" en "Casper" zijn.
+
+Voeg namen_deel2 aan namen_deel1 toe.
+
+P.S. Lijsten samenvoegen maakt een kopie van de linker lijst; in dit voorbeeld is `namen_deel2` na
+P.S. het samenvoegen dus onveranderd.
+Druk namen_deel1 af.
+Druk namen_deel2 af.

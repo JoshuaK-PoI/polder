@@ -4,7 +4,7 @@ use crate::logger::PolderError;
 macro_rules! runtime_error {
     ($span: expr, $kind:expr, $message:expr, $formatter:expr) => {
         RuntimeError {
-            message: format!("{} {}", $message, String::from($kind)),
+            message: format!("{} {}", $message, String::from($kind)).trim().to_string(),
             span_message: $formatter,
             span: $span,
         }
@@ -12,16 +12,16 @@ macro_rules! runtime_error {
 
     ($span: expr, $kind:expr, $message:expr) => {
         RuntimeError {
-            message: format!("{} {}", $message, String::from($kind)),
-            span_message: format!("{} {}", $message, String::from($kind)),
+            message: format!("{} {}", $message, String::from($kind)).trim().to_string(),
+            span_message: format!("{} {}", $message, String::from($kind)).trim().to_string(),
             span: $span,
         }
     };
 
     ($span: expr, $kind:expr) => {
         RuntimeError {
-            message: format!("{}", String::from($kind)),
-            span_message: format!("{}", String::from($kind)),
+            message: format!("{}", String::from($kind)).trim().to_string(),
+            span_message: format!("{}", String::from($kind)).trim().to_string(),
             span: $span,
         }
     };

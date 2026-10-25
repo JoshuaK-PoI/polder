@@ -77,7 +77,7 @@ impl From<&StoreValue> for PolderType {
     fn from(value: &StoreValue) -> Self {
         match value {
             StoreValue::Literal(literal) => literal.into(),
-            StoreValue::Array(arr) => PolderType::Array(PolderType::get_array_type(arr)),
+            StoreValue::Array(arr) => PolderType::Array(Some(PolderType::get_array_type(arr))),
         }
     }
 }
@@ -85,7 +85,7 @@ impl From<&StoreValue> for PolderType {
 pub(crate) struct Variable {
     pub(crate) declared_at: (usize, usize),
     pub(crate) type_: PolderType,
-    pub(crate) value: Option<StoreValue>,
+    pub(crate) value: Option<(StoreValue, (usize, usize))>,
     pub(crate) is_const: bool,
 }
 
@@ -119,7 +119,7 @@ impl Store {
     pub(crate) fn write(
         &mut self,
         identifier: String,
-        value: &StoreValue,
+        value: (StoreValue, (usize, usize)),
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
         if !self.variable_defined(&identifier) {
@@ -135,11 +135,11 @@ impl Store {
             .expect("unreachable (already checked existence");
 
         self.check_const(&identifier, variable, range)?;
-        Store::check_type_compatible(&identifier, variable, Some(value), range)?;
+        Store::check_type_compatible(&identifier, variable, Some(&value), range)?;
 
         self.variables
             .entry(identifier)
-            .and_modify(|variable| variable.value = Some(value.clone()));
+            .and_modify(|variable| variable.value = Some((value.0.clone(), value.1)));
 
         Ok(())
     }
@@ -177,7 +177,7 @@ impl Store {
                     && Store::check_type_compatible(
                         &identifier,
                         variable,
-                        Some(&store_value),
+                        Some(&(store_value.clone(), range)),
                         range,
                     )
                     .is_err()
@@ -198,7 +198,7 @@ impl Store {
                     ))
                 }
 
-                variable.value = Some(store_value);
+                variable.value = Some((store_value, range));
             });
 
         modified
@@ -208,57 +208,42 @@ impl Store {
         self.variables.contains_key(identifier)
     }
 
-    fn check_type_compatible(
+    pub(crate) fn check_type_compatible(
         identifier: &str,
         variable: &Variable,
-        input: Option<&StoreValue>,
+        input: Option<&(StoreValue, (usize, usize))>,
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
         let value_to_type_check = input.or(variable.value.as_ref());
-        debug!(
-            "Value to type check: {:?} against {}",
-            value_to_type_check, variable.type_
-        );
+
         match value_to_type_check {
             // We can't type check an empty value,
             // expect later in the program to handle empty value cases
             None => Ok(()),
-            Some(value) => match value {
-                StoreValue::Literal(literal) => {
-                    Store::type_check_literal(identifier, &variable.type_, literal, range)
+            Some(value) => match value.0 {
+                StoreValue::Literal(ref literal) => {
+                    Store::type_check_literal(identifier, &variable.type_, &literal, value.1)
                 }
-                StoreValue::Array(elements) => {
-                    match &variable.type_ {
-                        PolderType::Array(inner_type) => match inner_type {
-                            None => Ok(()),
-                            Some(type_) => elements.into_iter().try_for_each(|element| {
-                                Store::type_check_literal(identifier, type_, element, range)
-                                    .map_err(|_| runtime_error!(
-                                        range,
-                                        RuntimeErrorKind::MismatchedType,
-                                        format!("{}:", element),
-                                        format!("{} is een {}, {} (van type {}) kan hier niet aan worden toegevoegd.", 
-                                            identifier, 
-                                            Into::<PolderType>::into(value),
-                                            element,
-                                            element.get_type()
-                                        )
-                                    ))
-                                }),
-                        },
-                        _ => Err(runtime_error!(
-                            range,
-                            RuntimeErrorKind::MismatchedType,
-                            format!(
-                                "Waarde is een {}, maar het type van {} is {}",
-                                Into::<PolderType>::into(value),
-                                identifier,
-                                variable.type_
-                            )
-                        )),
-                    }
-                    // Store::type_check_array(identifier, &variable.type_, elements, range)
-                }
+                StoreValue::Array(ref elements) => match &variable.type_ {
+                    PolderType::Array(_) => elements.into_iter().try_for_each(|element| {
+                        Store::type_check_literal(
+                            identifier,
+                            &variable.type_,
+                            &element,
+                            value.1,
+                        )
+                    }),
+                    _ => Err(runtime_error!(
+                        value.1,
+                        RuntimeErrorKind::MismatchedType,
+                        format!(
+                            "Waarde is een {}, maar het type van {} is {}",
+                            Into::<PolderType>::into(&value.0),
+                            identifier,
+                            variable.type_
+                        )
+                    )),
+                },
             },
         }
     }
@@ -278,17 +263,36 @@ impl Store {
         } {
             Ok(())
         } else {
-            Err(runtime_error!(
-                range,
-                RuntimeErrorKind::MismatchedType,
-                "",
-                format!(
-                    "{} is een {}, geen {}",
-                    identifier,
-                    literal_type,
-                    value.get_type()
-                )
-            ))
+            match literal_type {
+                PolderType::Array(inner_type) => match inner_type {
+                    Some(inner_type) => {
+                        Store::type_check_literal(identifier, inner_type.as_ref(), value, range)
+                        .map_err(|_| runtime_error!(
+                                range,
+                                RuntimeErrorKind::MismatchedType,
+                                format!("{}:", value),
+                                format!("{} is een {}, {} (van type {}) kan hier niet aan worden toegevoegd.", 
+                                    identifier, 
+                                    literal_type,
+                                    value,
+                                    value.get_type(),
+                                )
+                            ))
+                    }
+                    None => Ok(()),
+                },
+                _ => Err(runtime_error!(
+                    range,
+                    RuntimeErrorKind::MismatchedType,
+                    "",
+                    format!(
+                        "{} is een {}, geen {}",
+                        identifier,
+                        literal_type,
+                        value.get_type()
+                    )
+                )),
+            }
         }
     }
 
@@ -306,7 +310,7 @@ impl Store {
                 format!(
                     "{} is voorgoed {}",
                     identifier,
-                    variable.get_value().as_ref().unwrap()
+                    variable.get_value().as_ref().unwrap().0
                 )
             ))
         } else {
@@ -388,7 +392,7 @@ fn try_char(input: String) -> Result<StoreValue, RuntimeError> {
 }
 
 impl Variable {
-    pub(crate) fn get_value(&self) -> &Option<StoreValue> {
+    pub(crate) fn get_value(&self) -> &Option<(StoreValue, (usize, usize))> {
         &self.value
     }
 }

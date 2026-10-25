@@ -45,23 +45,21 @@ impl PolderType {
             PolderType::Boolean => format!("waarheden"),
             PolderType::String => format!("teksten"),
             PolderType::Char => format!("letters"),
-            PolderType::Array(a) => format!(
-                "lijsten van {}",
-                if a.is_some() {
+            PolderType::Array(a) => {
+                format!(
+                    "lijsten van {}",
                     PolderType::to_pluralized(&a.as_ref().unwrap())
-                } else {
-                    format!("<onbekend>")
-                }
-            ),
+                )
+            }
         }
     }
 
     pub(crate) fn get_array_type(
         arr: &Vec<super::expression::literal::Literal>,
-    ) -> Option<Box<PolderType>> {
+    ) -> Box<PolderType> {
         match arr.get(0) {
-            Some(lit) => Some(Box::new(lit.into())),
-            None => None,
+            Some(lit) => Box::new(lit.into()),
+            None => panic!("Cannot get type from array literals; no elements in array"),
         }
     }
 }
@@ -79,9 +77,9 @@ impl From<&PolderType> for String {
                 PolderType::Array(boxed_type) => format!(
                     "lijst van {}",
                     if boxed_type.is_some() {
-                        PolderType::to_pluralized(&boxed_type.as_ref().unwrap())
+                        PolderType::to_pluralized(boxed_type.as_ref().unwrap())
                     } else {
-                        "<onbekend>".to_string()
+                        String::from("<onbekend>")
                     }
                 ),
             }

@@ -844,7 +844,17 @@ impl Parser {
 
                     if self.next_is(TokenType::KWAan) {
                         if multipart {
-                            todo!("Error about missing last 'en' before argument list close");
+                            return Err(CompilerError {
+                                kind: ErrorCode::InvalidExpression,
+                                message: format!(
+                                    "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
+                                    self.peek().unwrap().type_
+                                ),
+                                span_message: format!(
+                                    "Mogelijk ben je 'en' vergeten vóór het laatste element."
+                                ),
+                                span: self.peek().unwrap().span,
+                            });
                         }
                         break;
                     }

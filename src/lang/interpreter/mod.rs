@@ -77,7 +77,10 @@ impl Interpreter {
             _expr => {
                 let expr_result = self.interpret_expression(&declaration.value_expression)?;
                 let expression_result_type: PolderType = (&expr_result).into();
-                (Some(expr_result), expression_result_type)
+                (
+                    Some((expr_result, declaration.value_expression.span)),
+                    expression_result_type,
+                )
             }
         };
 
@@ -98,8 +101,11 @@ impl Interpreter {
         assignment: VariableAssignmentStatement,
     ) -> Result<(), RuntimeError> {
         let literal = self.interpret_expression(&assignment.expression)?;
-        self.store
-            .write(assignment.identifier, &literal, assignment.expression.span)?;
+        self.store.write(
+            assignment.identifier,
+            (literal, assignment.expression.span),
+            assignment.expression.span,
+        )?;
         Ok(())
     }
 
@@ -111,7 +117,7 @@ impl Interpreter {
             ExpressionType::Identifier(ident) => {
                 let variable = self.get_from_store(ident, expression.span)?;
                 match variable.get_value() {
-                    Some(value) => Ok(value.clone()),
+                    Some(value) => Ok(value.clone().0),
                     None => Err(runtime_error!(
                         expression.span,
                         RuntimeErrorKind::VariableHasNoValue,
@@ -253,7 +259,7 @@ impl Interpreter {
                 let mut arguments = Vec::new();
 
                 for argument in &method_call_expression.arguments {
-                    arguments.push(self.interpret_expression(argument)?);
+                    arguments.push((self.interpret_expression(argument)?, argument.span));
                 }
 
                 StoreValue::call_method(
@@ -265,7 +271,7 @@ impl Interpreter {
                 )
             }
             ExpressionType::Literal(literal) => {
-                todo!()
+                todo!("Interpret method call for literal {}", literal)
             }
             expression_type => Err(runtime_error!(
                 span,
@@ -366,13 +372,15 @@ impl Interpreter {
     ) -> Result<(), RuntimeError> {
         match store_value {
             StoreValue::Literal(lit)
-                if ![PolderType::Integer, PolderType::Float].contains(&(lit).into()) =>
+                if [PolderType::Integer, PolderType::Float].contains(&(lit).into()) =>
             {
                 Ok(())
             }
             _ => Err(runtime_error!(
                 expr.span,
-                RuntimeErrorKind::CannotCalculateNonNumeric
+                RuntimeErrorKind::CannotCalculateNonNumeric,
+                format!(""),
+                format!("Waarde '{}' is een {}", store_value, store_value.get_type())
             )),
         }
     }
