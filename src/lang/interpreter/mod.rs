@@ -262,7 +262,7 @@ impl Interpreter {
                     arguments.push((self.interpret_expression(argument)?, argument.span));
                 }
 
-                StoreValue::call_method(
+                methods::call_method(
                     self.get_from_store(identifier, span)?,
                     identifier,
                     &method_call_expression.method_name,

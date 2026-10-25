@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use log::debug;
-
 use crate::{
     lang::{
         compiler::parser::{expression::literal::Literal, types::PolderType},
@@ -110,7 +108,7 @@ impl Store {
             ));
         }
 
-        Store::check_type_compatible(&identifier, &variable, None, range)?;
+        Store::check_type_compatible(&identifier, &variable, None)?;
 
         self.variables.insert(identifier, variable);
         Ok(())
@@ -135,7 +133,7 @@ impl Store {
             .expect("unreachable (already checked existence");
 
         self.check_const(&identifier, variable, range)?;
-        Store::check_type_compatible(&identifier, variable, Some(&value), range)?;
+        Store::check_type_compatible(&identifier, variable, Some(&value))?;
 
         self.variables
             .entry(identifier)
@@ -178,7 +176,6 @@ impl Store {
                         &identifier,
                         variable,
                         Some(&(store_value.clone(), range)),
-                        range,
                     )
                     .is_err()
                 {
@@ -212,7 +209,6 @@ impl Store {
         identifier: &str,
         variable: &Variable,
         input: Option<&(StoreValue, (usize, usize))>,
-        range: (usize, usize),
     ) -> Result<(), RuntimeError> {
         let value_to_type_check = input.or(variable.value.as_ref());
 
