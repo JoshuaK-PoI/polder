@@ -114,79 +114,77 @@ pub(crate) enum UnaryOp {
 
 impl Parser {
     pub(crate) fn stmt(&mut self) -> CompilerResult<Statement> {
-        if let Some(token) = self.peek() {
-            let stmt = match token.type_ {
-                TokenType::KWDruk => self.intrinsic(Intrinsics::Print),
-                TokenType::KWSchrijf => self.intrinsic(Intrinsics::Write),
-                TokenType::KWMaak => self.variable_assignment(),
-                TokenType::KWLaat => self.variable_declaration(),
-                TokenType::KWLees => self.intrinsic(Intrinsics::Readline),
-                TokenType::KWTel => self.arith_add(),
-                TokenType::KWTrek => self.arith_subtract(),
-                TokenType::KWVermenigvuldig => self.arith_multiply(),
-                TokenType::KWDeel => self.arith_divide(),
-                TokenType::KWVerhoog => self.arith_increment(),
-                TokenType::KWVerlaag => self.arith_decrement(),
-                TokenType::KWAls => self.if_statement(),
-                TokenType::KWZolang => self.while_statement(),
-                TokenType::KWVoeg => self.method_statement(),
-                TokenType::KWVoor => self.foreach_statement(),
-                TokenType::KWKlaar => {
-                    let start = self.expect(TokenType::KWKlaar)?.span.0;
-                    self.expect(TokenType::KWIs)?;
-                    let end = self.expect(TokenType::KWKees)?;
-
-                    Err(CompilerError {
-                        kind: ErrorCode::InvalidStatement,
-                        message: format!("Kees was nog niet eens begonnen"),
-                        span_message: format!("Er is hier geen blok om af te sluiten."),
-                        span: (start, end.span.1),
-                    })
-                }
-                TokenType::KWZo | TokenType::KWAnders => Err(CompilerError {
-                    kind: ErrorCode::InvalidStatement,
-                    message: format!(
-                        "'{}' hoort bij een 'Als'",
-                        if token.type_ == TokenType::KWZo {
-                            format!("Zo niet")
-                        } else {
-                            format!("Anders")
-                        }
-                    ),
-                    span_message: format!(
-                        "Er staat geen 'Als' vóór '{}'",
-                        if token.type_ == TokenType::KWZo {
-                            format!("Zo niet")
-                        } else {
-                            format!("Anders")
-                        }
-                    ),
-                    span: token.span,
-                }),
-                _ => todo!("parse < {} >", token.type_),
-            }?;
-
-            if self.mode != ParserMode::InThenStatement {
-                if !self.next_is(TokenType::FullStop) {
-                    return Err(CompilerError {
-                        kind: ErrorCode::StatementNotTerminated,
-                        message: format!("Een zin eindigt met een punt."),
-                        span_message: format!("Deze zin is niet beëindigd."),
-                        span: self.get_nth(0).span,
-                    });
-                }
-                self.expect(TokenType::FullStop)?;
-            }
-
-            Ok(stmt)
-        } else {
-            Err(CompilerError {
+        if self.peek().is_none() {
+            return Err(CompilerError {
                 kind: ErrorCode::NoTokensLeft,
                 message: format!("Expected start of statement"),
                 span_message: String::from(""),
-                span: (0, 0),
-            })
+                span: self.get_nth(0).span,
+            });
         }
+
+        let stmt = match self.peek().unwrap().type_ {
+            TokenType::KWDruk => self.intrinsic(Intrinsics::Print),
+            TokenType::KWSchrijf => self.intrinsic(Intrinsics::Write),
+            TokenType::KWMaak => self.variable_assignment(),
+            TokenType::KWLaat => self.variable_declaration(),
+            TokenType::KWLees => self.intrinsic(Intrinsics::Readline),
+            TokenType::KWTel => self.arith_add(),
+            TokenType::KWTrek => self.arith_subtract(),
+            TokenType::KWVermenigvuldig => self.arith_multiply(),
+            TokenType::KWDeel => self.arith_divide(),
+            TokenType::KWVerhoog => self.arith_increment(),
+            TokenType::KWVerlaag => self.arith_decrement(),
+            TokenType::KWAls => self.if_statement(),
+            TokenType::KWZolang => self.while_statement(),
+            TokenType::KWVoeg => self.method_statement(),
+            TokenType::KWVoor => self.foreach_statement(),
+            TokenType::KWKlaar => {
+                let start = self.expect(TokenType::KWKlaar)?.span.0;
+                self.expect(TokenType::KWIs)?;
+                let end = self.expect(TokenType::KWKees)?;
+
+                Err(CompilerError {
+                    kind: ErrorCode::InvalidStatement,
+                    message: format!("Kees was nog niet eens begonnen"),
+                    span_message: format!("Er is hier geen blok om af te sluiten."),
+                    span: (start, end.span.1),
+                })
+            }
+            TokenType::KWZo | TokenType::KWAnders => Err(CompilerError {
+                kind: ErrorCode::InvalidStatement,
+                message: format!(
+                    "'{}' hoort bij een 'Als'",
+                    if self.peek().unwrap().type_ == TokenType::KWZo {
+                        format!("Zo niet")
+                    } else {
+                        format!("Anders")
+                    }
+                ),
+                span_message: format!(
+                    "Er staat geen 'Als' vóór '{}'",
+                    if self.peek().unwrap().type_ == TokenType::KWZo {
+                        format!("Zo niet")
+                    } else {
+                        format!("Anders")
+                    }
+                ),
+                span: self.peek().unwrap().span,
+            }),
+            _ => todo!("parse < {} >", self.peek().unwrap().type_),
+        }?;
+
+        if self.mode != ParserMode::InThenStatement {
+            self.expect(TokenType::FullStop)
+                .map_err(|_| CompilerError {
+                    kind: ErrorCode::StatementNotTerminated,
+                    message: format!("Een zin eindigt met een punt."),
+                    span_message: format!("Deze zin is niet beëindigd."),
+                    span: self.get_nth(0).span,
+                })?;
+        }
+
+        Ok(stmt)
     }
 
     pub fn intrinsic(&mut self, intrinsic_name: Intrinsics) -> CompilerResult<Statement> {
@@ -303,7 +301,6 @@ impl Parser {
 
                 match *type_ {
                     PolderType::Array(_) => {
-                        // Inferring array type from its inner expressions
                         let mut elements: Vec<Expression> = Vec::new();
 
                         loop {
@@ -314,7 +311,6 @@ impl Parser {
                             }
 
                             if self.next_is_then_unshift(TokenType::KWEn) {
-                                // One last element
                                 elements.push(self.expression()?);
                                 break;
                             }
@@ -350,8 +346,7 @@ impl Parser {
                         ))
                     }
                     _ => {
-                        let expr = self.expression()?;
-                        let expr = match expr.expression {
+                        let expr = match self.expression()?.expression {
                             ExpressionType::Literal(ref lit) => {
                                 if *type_ != Into::<PolderType>::into(lit) {
                                     Err(CompilerError {
@@ -631,7 +626,7 @@ impl Parser {
         &mut self,
         check_expression: Expression,
     ) -> CompilerResult<Expression> {
-        let lit = self.expect_any_of(LITERALS)?.clone();
+        let lit = self.expect_any_of(LITERALS)?;
         self.expect(TokenType::KWIs)?;
 
         let span = (check_expression.span.0, lit.span.1);
