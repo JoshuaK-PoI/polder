@@ -201,6 +201,7 @@ impl Interpreter {
                     Ok(lhs / rhs)
                 }
             }
+            BinaryOp::Modulo => Ok(lhs % rhs),
             BinaryOp::Less => Ok(Literal::Boolean(lhs < rhs)),
             BinaryOp::Greater => Ok(Literal::Boolean(lhs > rhs)),
             BinaryOp::Equal => Ok(Literal::Boolean(lhs == rhs)),

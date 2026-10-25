@@ -37,6 +37,7 @@ impl Parser {
                     TokenType::KWVerschil => BinaryOp::Subtract,
                     TokenType::KWProduct => BinaryOp::Multiply,
                     TokenType::KWQuotient => BinaryOp::Divide,
+                    TokenType::KWModulo => BinaryOp::Modulo,
                     _ => unreachable!(),
                 },
                 lhs: Box::new(lhs),

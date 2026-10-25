@@ -88,6 +88,7 @@ pub(crate) enum BinaryOp {
     Subtract,
     Multiply,
     Divide,
+    Modulo,
     Less,
     Greater,
     Equal,

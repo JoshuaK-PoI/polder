@@ -39,6 +39,7 @@ pub enum TokenType {
     KWDeel,
     KWDoor,
     KWQuotient,
+    KWModulo,
     KWVerhoog,
     KWVerlaag,
 
@@ -106,6 +107,7 @@ pub(crate) const ARITH_EXPR: &[TokenType] = &[
     TokenType::KWVerschil,
     TokenType::KWProduct,
     TokenType::KWQuotient,
+    TokenType::KWModulo,
 ];
 
 pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
@@ -132,6 +134,7 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "deel" => TokenType::KWDeel,
     "door" => TokenType::KWDoor,
     "quotiënt" => TokenType::KWQuotient,
+    "modulo" => TokenType::KWModulo,
     "verhoog" => TokenType::KWVerhoog,
     "verlaag" => TokenType::KWVerlaag,
     "kleiner" => TokenType::KWKleiner,
@@ -194,6 +197,7 @@ impl From<TokenType> for String {
                 TokenType::KWDeel => "deel",
                 TokenType::KWDoor => "door",
                 TokenType::KWQuotient => "quotiënt",
+                TokenType::KWModulo => "modulo",
                 TokenType::KWVerhoog => "verhoog",
                 TokenType::KWVerlaag => "verlaag",
                 TokenType::KWKleiner => "kleiner",

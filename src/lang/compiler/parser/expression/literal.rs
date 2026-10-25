@@ -96,6 +96,26 @@ impl std::ops::Div for Literal {
     }
 }
 
+impl std::ops::Rem for Literal {
+    type Output = Literal;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        match self {
+            Literal::Integer(int) => match rhs {
+                Literal::Integer(rhs_int) => Literal::Integer(int % rhs_int),
+                Literal::Float(rhs_flt) => Literal::Float(int as f64 % rhs_flt),
+                _ => todo!(),
+            },
+            Literal::Float(flt) => match rhs {
+                Literal::Float(rhs_flt) => Literal::Float(flt % rhs_flt),
+                Literal::Integer(rhs_int) => Literal::Float(flt % rhs_int as f64),
+                _ => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
+}
+
 impl std::ops::Not for Literal {
     type Output = Literal;
     fn not(self) -> Self::Output {

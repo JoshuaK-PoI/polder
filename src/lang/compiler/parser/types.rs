@@ -184,7 +184,7 @@ impl Parser {
 
 pub(crate) fn is_correct_article(article: &Token, token_type: &Token) -> bool {
     match token_type.type_ {
-        TokenType::KWSom => article.type_ == TokenType::KWArticleDefD,
+        TokenType::KWSom | TokenType::KWModulo => article.type_ == TokenType::KWArticleDefD,
         TokenType::KWVerschil | TokenType::KWProduct | TokenType::KWQuotient => {
             article.type_ == TokenType::KWArticleDefH
         }
