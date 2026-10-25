@@ -7,7 +7,7 @@ use crate::lang::compiler::{
         expression::{
             BinaryExpression,
             ExpressionType::{self, ArrayDecl},
-            UnaryExpression,
+            MethodCallExpression, UnaryExpression,
             literal::literal,
         },
     },
@@ -118,6 +118,7 @@ impl Parser {
                 TokenType::KWVerlaag => self.arith_decrement(),
                 TokenType::KWAls => self.if_statement(),
                 TokenType::KWZolang => self.while_statement(),
+                TokenType::KWVoeg => self.method_statement(),
                 TokenType::KWKlaar => {
                     let start = self.expect(TokenType::KWKlaar)?.span.0;
                     self.expect(TokenType::KWIs)?;
@@ -292,7 +293,7 @@ impl Parser {
                     PolderType::Array(_) => {
                         // Inferring array type from its inner expressions
                         let mut elements: Vec<Expression> = Vec::new();
-                        
+
                         loop {
                             elements.push(self.expression()?);
 
@@ -381,6 +382,64 @@ impl Parser {
                             },
                         ))
                     }
+                }
+            }
+            ExpressionType::MethodCall(method) => {
+                // Note:
+                // This is a bit of a hack. Because type declarations for lists and
+                // method calls on identifiers are syntactically the same,
+                // the expression parser can't distinguish the two.
+                // For a variable declaration with an indefinite article
+                // only a type is possible, so we can assume here that
+                // a type was actually meant.
+                // In the future, we should split type declaration from actual expressions
+                // because they wouldn't be valid expressions anyway.
+                self.expect(TokenType::KWZijn)?;
+
+                if method.method_name == "lijst" {
+                    if !is_indefinite_article {
+                        todo!("Implement error for empty list with definite article")
+                    }
+
+                    let inner_type =
+                        match PolderType::from_pluralized(match method.class.expression {
+                            ExpressionType::Identifier(ident) => Ok(ident),
+                            _ => Err(CompilerError {
+                                kind: ErrorCode::IndefiniteCannotHaveValue,
+                                message: format!("Verwachtte een type hier"),
+                                span_message: format!("Verwachtte een type hier"),
+                                span: method.class.span,
+                            }),
+                        }?) {
+                            Some(type_) => Ok(type_),
+                            None => Err(CompilerError {
+                                kind: ErrorCode::IndefiniteCannotHaveValue,
+                                message: format!("Verwachtte een type hier"),
+                                span_message: format!("Verwachtte een type hier"),
+                                span: method.class.span,
+                            }),
+                        }?;
+
+                    Ok(Statement::VariableDeclaration(
+                        VariableDeclarationStatement {
+                            identifier: identifier.value,
+                            value_expression: Expression {
+                                expression: ExpressionType::Type(PolderType::Array(Some(
+                                    Box::new(inner_type),
+                                ))),
+                                span: expr.span,
+                            },
+                            is_const,
+                            declared_at: identifier.span,
+                        },
+                    ))
+                } else {
+                    Err(CompilerError {
+                        kind: ErrorCode::IndefiniteCannotHaveValue,
+                        message: format!("Verwachtte een type hier"),
+                        span_message: format!("Verwachtte een type hier"),
+                        span: expr.span,
+                    })
                 }
             }
             _expression => Err(CompilerError {
@@ -766,5 +825,68 @@ impl Parser {
                 span: expr_span,
             },
         })
+    }
+
+    fn method_statement(&mut self) -> Result<Statement, CompilerError> {
+        match self.peek().unwrap().type_ {
+            TokenType::KWVoeg => {
+                let start = self.expect(TokenType::KWVoeg)?.span.0;
+                let mut arguments: Vec<Expression> = Vec::new();
+                let mut multipart = false;
+
+                loop {
+                    arguments.push(self.expression()?);
+
+                    if self.next_is_then_unshift(TokenType::Comma) {
+                        multipart = true;
+                        continue;
+                    }
+
+                    if self.next_is(TokenType::KWAan) {
+                        if multipart {
+                            todo!("Error about missing last 'en' before argument list close");
+                        }
+                        break;
+                    }
+
+                    if self.next_is_then_unshift(TokenType::KWEn) {
+                        arguments.push(self.expression()?);
+                        break;
+                    }
+
+                    return Err(CompilerError {
+                        kind: ErrorCode::InvalidExpression,
+                        message: format!(
+                            "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
+                            self.peek().unwrap().type_
+                        ),
+                        span_message: format!(
+                            "Mogelijk ben je 'en' vergeten vóór het laatste element."
+                        ),
+                        span: self.peek().unwrap().span,
+                    });
+                }
+
+                self.expect(TokenType::KWAan)?;
+                let identifier = self.expect(TokenType::Identifier)?;
+                let end = self.expect(TokenType::KWToe)?.span.1;
+
+                Ok(Statement::VariableAssignment(VariableAssignmentStatement {
+                    identifier: identifier.value.clone(),
+                    expression: Expression {
+                        span: (start, end),
+                        expression: ExpressionType::MethodCall(MethodCallExpression {
+                            method_name: "Voeg toe".to_string(),
+                            arguments,
+                            class: Box::new(Expression {
+                                expression: ExpressionType::Identifier(identifier.value),
+                                span: identifier.span,
+                            }),
+                        }),
+                    },
+                }))
+            }
+            _ => unimplemented!("Method statement for {}", self.peek().unwrap()),
+        }
     }
 }

@@ -6,7 +6,7 @@ use crate::lang::compiler::{
     lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenType},
     parser::{
         Parser,
-        expression::ExpressionType::{Binary, FunctionCall, Unary},
+        expression::ExpressionType::{Binary, MethodCall, Unary},
         statement::{BinaryOp, UnaryOp},
         types::PolderType,
     },
@@ -24,7 +24,7 @@ pub(crate) struct Expression {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) enum ExpressionType {
     ArrayDecl(Vec<Expression>),
-    FunctionCall(FunctionCallExpression),
+    MethodCall(MethodCallExpression),
     Literal(Literal),
     Identifier(String),
     Type(PolderType),
@@ -46,9 +46,10 @@ pub(crate) struct UnaryExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
-pub(crate) struct FunctionCallExpression {
-    pub(crate) function_name: String,
-    pub(crate) identifier: String,
+pub(crate) struct MethodCallExpression {
+    pub(crate) method_name: String,
+    pub(crate) arguments: Vec<Expression>,
+    pub(crate) class: Box<Expression>,
 }
 
 impl std::fmt::Display for ExpressionType {
@@ -63,7 +64,7 @@ impl std::fmt::Display for ExpressionType {
                 ExpressionType::Identifier(_) => "Identifier".to_string(),
                 ExpressionType::Type(_) => "Type".to_string(),
                 ExpressionType::ArrayDecl(_) => "ArrayDecl".to_string(),
-                ExpressionType::FunctionCall(_) => "FunctionCall".to_string(),
+                ExpressionType::MethodCall(_) => "MethodCall".to_string(),
             }
         )
     }
@@ -146,14 +147,14 @@ impl Parser {
         let function_name = self.expect(TokenType::Identifier)?.value;
         self.expect(TokenType::KWVan)?;
 
-        let identifier = self.expect(TokenType::Identifier)?;
-        let end = identifier.span.1;
-        let identifier = identifier.value;
+        let class = self.expression()?;
+        let end = class.span.1;
 
         Ok(Expression {
-            expression: FunctionCall(FunctionCallExpression {
-                function_name,
-                identifier,
+            expression: MethodCall(MethodCallExpression {
+                method_name: function_name,
+                arguments: Vec::new(),
+                class: Box::new(class),
             }),
             span: (start, end),
         })

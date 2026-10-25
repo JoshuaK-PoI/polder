@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use log::debug;
+
 use crate::{
     lang::{
         compiler::parser::{expression::literal::Literal, types::PolderType},
@@ -50,13 +52,12 @@ impl StoreValue {
     pub(crate) fn literal(
         store_value: StoreValue,
         range: (usize, usize),
-        func: fn(value: Literal) -> Literal
+        func: fn(value: Literal) -> Literal,
     ) -> Result<StoreValue, RuntimeError> {
         let lit = StoreValue::unwrap_literal(store_value, range)?;
         let res = func(lit);
         Ok(StoreValue::Literal(res))
     }
-
 
     pub(crate) fn unwrap_literal(
         store_value: StoreValue,
@@ -72,15 +73,14 @@ impl StoreValue {
     }
 }
 
-impl From<StoreValue> for PolderType {
-    fn from(value: StoreValue) -> Self {
+impl From<&StoreValue> for PolderType {
+    fn from(value: &StoreValue) -> Self {
         match value {
-            StoreValue::Literal(ref literal) => literal.into(),
-            StoreValue::Array(arr) => todo!("StoreValue to PolderType for array value {:?}", arr)
+            StoreValue::Literal(literal) => literal.into(),
+            StoreValue::Array(arr) => PolderType::Array(PolderType::get_array_type(arr)),
         }
     }
 }
-
 #[derive(Debug, Clone)]
 pub(crate) struct Variable {
     pub(crate) declared_at: (usize, usize),
@@ -215,6 +215,10 @@ impl Store {
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
         let value_to_type_check = input.or(variable.value.as_ref());
+        debug!(
+            "Value to type check: {:?} against {}",
+            value_to_type_check, variable.type_
+        );
         match value_to_type_check {
             // We can't type check an empty value,
             // expect later in the program to handle empty value cases
@@ -223,9 +227,38 @@ impl Store {
                 StoreValue::Literal(literal) => {
                     Store::type_check_literal(identifier, &variable.type_, literal, range)
                 }
-                StoreValue::Array(elements) => elements.into_iter().try_for_each(|element| {
-                    Store::type_check_literal(identifier, &variable.type_, element, range)
-                }),
+                StoreValue::Array(elements) => {
+                    match &variable.type_ {
+                        PolderType::Array(inner_type) => match inner_type {
+                            None => Ok(()),
+                            Some(type_) => elements.into_iter().try_for_each(|element| {
+                                Store::type_check_literal(identifier, type_, element, range)
+                                    .map_err(|_| runtime_error!(
+                                        range,
+                                        RuntimeErrorKind::MismatchedType,
+                                        format!("{}:", element),
+                                        format!("{} is een {}, {} (van type {}) kan hier niet aan worden toegevoegd.", 
+                                            identifier, 
+                                            Into::<PolderType>::into(value),
+                                            element,
+                                            element.get_type()
+                                        )
+                                    ))
+                                }),
+                        },
+                        _ => Err(runtime_error!(
+                            range,
+                            RuntimeErrorKind::MismatchedType,
+                            format!(
+                                "Waarde is een {}, maar het type van {} is {}",
+                                Into::<PolderType>::into(value),
+                                identifier,
+                                variable.type_
+                            )
+                        )),
+                    }
+                    // Store::type_check_array(identifier, &variable.type_, elements, range)
+                }
             },
         }
     }

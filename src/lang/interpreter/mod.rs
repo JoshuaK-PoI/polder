@@ -1,4 +1,5 @@
 mod intrinsic;
+mod methods;
 mod runtime_error;
 mod store;
 
@@ -9,7 +10,8 @@ use crate::{
             iter::unshift::Unshift,
             parser::{
                 expression::{
-                    BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
+                    BinaryExpression, Expression, ExpressionType, MethodCallExpression,
+                    UnaryExpression, literal::Literal,
                 },
                 intrinsic::Intrinsics,
                 statement::{
@@ -74,7 +76,7 @@ impl Interpreter {
             ExpressionType::Type(type_) => (None, type_.to_owned()),
             _expr => {
                 let expr_result = self.interpret_expression(&declaration.value_expression)?;
-                let expression_result_type: PolderType = expr_result.clone().into();
+                let expression_result_type: PolderType = (&expr_result).into();
                 (Some(expr_result), expression_result_type)
             }
         };
@@ -106,8 +108,21 @@ impl Interpreter {
             ExpressionType::Literal(lit) => Ok(StoreValue::Literal(lit.clone())),
             ExpressionType::Unary(un) => self.interpret_unary_expression(un),
             ExpressionType::Binary(bin) => self.interpret_binary_expression(bin),
-            ExpressionType::Identifier(ident) => self.get_from_store(ident, expression.span),
+            ExpressionType::Identifier(ident) => {
+                let variable = self.get_from_store(ident, expression.span)?;
+                match variable.get_value() {
+                    Some(value) => Ok(value.clone()),
+                    None => Err(runtime_error!(
+                        expression.span,
+                        RuntimeErrorKind::VariableHasNoValue,
+                        ident
+                    )),
+                }
+            }
             ExpressionType::ArrayDecl(arr) => self.interpret_array(arr),
+            ExpressionType::MethodCall(method) => {
+                self.interpret_method_call(method, expression.span)
+            }
             _ => Err(runtime_error!(
                 expression.span,
                 RuntimeErrorKind::UnsupportedFunction
@@ -228,6 +243,42 @@ impl Interpreter {
         }
     }
 
+    fn interpret_method_call(
+        &self,
+        method_call_expression: &MethodCallExpression,
+        span: (usize, usize),
+    ) -> Result<StoreValue, RuntimeError> {
+        match &method_call_expression.class.expression {
+            ExpressionType::Identifier(identifier) => {
+                let mut arguments = Vec::new();
+
+                for argument in &method_call_expression.arguments {
+                    arguments.push(self.interpret_expression(argument)?);
+                }
+
+                StoreValue::call_method(
+                    self.get_from_store(identifier, span)?,
+                    identifier,
+                    &method_call_expression.method_name,
+                    arguments,
+                    span,
+                )
+            }
+            ExpressionType::Literal(literal) => {
+                todo!()
+            }
+            expression_type => Err(runtime_error!(
+                span,
+                RuntimeErrorKind::UnsupportedFunction,
+                expression_type,
+                format!(
+                    "Methode aanroepen op een {} is niet mogelijk",
+                    expression_type
+                )
+            )),
+        }
+    }
+
     fn interpret_array(&self, array: &Vec<Expression>) -> Result<StoreValue, RuntimeError> {
         let mut result = Vec::new();
         for expression in array {
@@ -297,16 +348,9 @@ impl Interpreter {
         &self,
         variable_identifier: &String,
         span: (usize, usize),
-    ) -> Result<StoreValue, RuntimeError> {
+    ) -> Result<&Variable, RuntimeError> {
         match self.store.get(variable_identifier) {
-            Some(variable) => match variable.get_value() {
-                Some(value) => Ok(value.to_owned()),
-                None => Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::VariableHasNoValue,
-                    variable_identifier
-                )),
-            },
+            Some(variable) => Ok(variable),
             None => Err(runtime_error!(
                 span,
                 RuntimeErrorKind::UndefinedVariable,

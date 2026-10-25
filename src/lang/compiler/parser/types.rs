@@ -27,7 +27,7 @@ impl From<String> for PolderType {
 }
 
 impl PolderType {
-    fn from_pluralized(pluralized_value: String) -> Option<PolderType> {
+    pub(crate) fn from_pluralized(pluralized_value: String) -> Option<PolderType> {
         match pluralized_value.as_str() {
             "getallen" => Some(PolderType::Integer),
             "kommagetallen" => Some(PolderType::Float),
@@ -37,7 +37,35 @@ impl PolderType {
             _ => None,
         }
     }
+
+    pub(crate) fn to_pluralized(type_: &PolderType) -> String {
+        match type_ {
+            PolderType::Integer => format!("getallen"),
+            PolderType::Float => format!("kommagetallen"),
+            PolderType::Boolean => format!("waarheden"),
+            PolderType::String => format!("teksten"),
+            PolderType::Char => format!("letters"),
+            PolderType::Array(a) => format!(
+                "lijsten van {}",
+                if a.is_some() {
+                    PolderType::to_pluralized(&a.as_ref().unwrap())
+                } else {
+                    format!("<onbekend>")
+                }
+            ),
+        }
+    }
+
+    pub(crate) fn get_array_type(
+        arr: &Vec<super::expression::literal::Literal>,
+    ) -> Option<Box<PolderType>> {
+        match arr.get(0) {
+            Some(lit) => Some(Box::new(lit.into())),
+            None => None,
+        }
+    }
 }
+
 impl From<&PolderType> for String {
     fn from(value: &PolderType) -> Self {
         format!(
@@ -49,11 +77,11 @@ impl From<&PolderType> for String {
                 PolderType::Float => format!("kommagetal"),
                 PolderType::Char => format!("karakter"),
                 PolderType::Array(boxed_type) => format!(
-                    "[{}]",
+                    "lijst van {}",
                     if boxed_type.is_some() {
-                        boxed_type.as_ref().unwrap().to_string()
+                        PolderType::to_pluralized(&boxed_type.as_ref().unwrap())
                     } else {
-                        "onbekend".to_string()
+                        "<onbekend>".to_string()
                     }
                 ),
             }

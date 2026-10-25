@@ -24,6 +24,8 @@ pub enum TokenType {
     KWOp,
     KWLees,
     KWIn,
+    KWVoeg,
+    KWToe,
 
     // Arithmetic KWs
     KWTel,
@@ -115,6 +117,8 @@ pub(crate) static KEYWORDS: phf::Map<&'static str, TokenType> = phf::phf_map! {
     "zijn" => TokenType::KWZijn,
     "maak" => TokenType::KWMaak,
     "van" => TokenType::KWVan,
+    "voeg" => TokenType::KWVoeg,
+    "toe" => TokenType::KWToe,
     "tel" => TokenType::KWTel,
     "bij" => TokenType::KWBij,
     "som" => TokenType::KWSom,
@@ -173,6 +177,8 @@ impl From<TokenType> for String {
                 TokenType::KWOp => "op",
                 TokenType::KWLees => "lees",
                 TokenType::KWIn => "in",
+                TokenType::KWVoeg => "voeg",
+                TokenType::KWToe => "toe",
                 TokenType::KWTel => "tel",
                 TokenType::KWBij => "bij",
                 TokenType::KWSom => "som",
