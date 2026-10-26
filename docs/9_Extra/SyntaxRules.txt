@@ -1,43 +1,63 @@
+-- Entrypoint: Program
+Program := ( Statement )+
 
+( Statement ) := 
+		| ( VariableDeclarationStatement )
+		| ( VariableAssignmentStatement )
+		| ( IntrinsicStatement )
+		| ( IfStatement )
+		| ( WhileStatement )
+		| ( ForeachStatement )
+		| ( Comment )
+		;
 
-//// New Syntax Rules ////
+( Comment ) := 'P.S.' (.*)*\n ;
 
+( VariableDeclarationStatement ) := LAAT ( Identifier ) VOORGOED? [ ( TypeDeclExpr ) | ( Expr ) ] ZIJN FULLSTOP;
+( VariableAssignmentStatement ) := [
+		| MAAK [dan] VAN ( Identifier ) ( Expr )
+		| TEL [dan] ( Expr ) BIJ ( Identifier ) OP
+		| TREK [dan] ( Expr ) VAN ( Identifier ) AF
+		| VERMENIGVULDIG ( Identifier ) MET ( Expr )
+		| DEEL ( Identifier ) DOOR ( Expr )
+		| VERHOOG ( Identifier )
+		| VERLAAG ( Identifier )
+		| ( MethodCallStatement )
+	] FULLSTOP;
 
-Expression := Equality
+( IntrinsicStatement ) := ( IntrinsicStart ) ( Expr ) (IntrinsicEnd(IntrinsicStart) ) FULLSTOP;
+( IntrinsicStart ) := DRUK | SCHRIJF | LEES ;
+( IntrinsicEnd(start) ) :=
+		| start == DRUK     ? AF :
+			start == SCHRIJF 	? OP :
+			start == LEES 		? IN
+		;
 
+( IfStatement ) := ALS ( ComparisonExpr ) [ 
+		| COMMA ( Statement -> Parser::InThenStatement = true ) ( ElseStatement )?
+		| COLON ( Statement )+ ( ElseBlock )? KLAAR IS KEES FULLSTOP
+	];
 
+( ElseStatement ) := ZO NIET COMMA ( Statement -> Parser::InThenStatement = true );
+( ElseBlock ) := ANDERS COLON ( Statement )+ ;
 
+( WhileStatement ) := ZOLANG ( ComparisonExpr ) COLON ( Statement )+ KLAAR IS KEES FULLSTOP;
+( ForeachStatement ) := VOOR ELKE [( Identifier ) EN]? ( Identifier ) IN ( Identifier ) COLON ( Statement )+ KLAAR IS KEES FULLSTOP;
 
-
-Equality := Additive (`==` | `>=` | `<=` | `!=` Additive)*
-
-Additive := Multiplicative ('+' | '-' Multiplicative)*
-
-Multiplicative := Primary `*` | `/` Primary
-
-//// End New Syntax Rules ////
-
-
-
-
-
-
-
-
-
-
-
-
-
-VariableDeclarationStatement := LAAT ( Identifier ) ( Expr ) ZIJN FULLSTOP;
+( MethodCallStatement ) :=
+	VOEG ( Expr ) AAN ( Identifier ) TOE;
 
 ( Expr ) :=
 		| ( ArithExpr )
-		| ( TypeDeclExpr )
+		| ( MethodCallExpr )
 		| ( LiteralExpr )
+		| ( Identifier )
 		;
 
-( ArithExpr ) := ( Article ) ( ArithOp ) VAN ( VarOrNumber ) EN ( VarOrNumber )
+( ComparisonExpr ) := ( Expr ) ( Comparison ) ( Expr ) | ( Expr ) ( Literal ) IS;
+
+( ArithExpr ) := ( Article ) ( ArithOp ) VAN ( Expr ) EN ( Expr );
+( MethodCallExpr ) := ( Article ) ( Method ) VAN ( Identifier );
 ( TypeDeclExpr ) := ( Article ) ( Type ) ( LiteralExpr )?;
 
 ( LiteralExpr ) :=
@@ -49,6 +69,8 @@ VariableDeclarationStatement := LAAT ( Identifier ) ( Expr ) ZIJN FULLSTOP;
 		| TRUE
 		| FALSE
 		;
+
+( Comparison ) := NIET? [ [ GROTER | KLEINER ] IS DAN | GELIJK IS AAN ];
 
 ( StringLiteral ) := ( OpenQuote )[([^( CloseQuote )])*]( CloseQuote );
 ( IntegerLiteral ) := [0-9]+;
@@ -65,17 +87,61 @@ VariableDeclarationStatement := LAAT ( Identifier ) ( Expr ) ZIJN FULLSTOP;
 ( Identifier ) := [a-zA-Z][a-zA-Z0-9_]*;
 
 ( Article ) := 'de' | 'het' | 'een';
-( Type ) := 'getal' | 'kommagetal' | 'tekst' | 'waarheid' | 'letter';
-( ArithOp ) := 'som' | 'verschil' | 'product' | 'quotiënt';
+( TypeName ) := 'getal' | 'kommagetal' | 'tekst' | 'waarheid' | 'letter' | ['lijst' VAN ( TypePlural )?];
+( TypePlural ) := 'getallen' | 'kommagetallen' | 'teksten' | 'waarheden' | 'letters' | ['lijsten' VAN ( TypePlural )];
+
+( ArithOp ) := SOM | VERSCHIL | PRODUCT | QUOTIENT | MODULO;
 ( OpenQuote ) := '"' | '“' | '„';
 ( CloseQuote ) := '"' | '”';
 
-LAAT := 'Laat';
-ZIJN := 'Zijn';
+[dan] := Parser::InThenStatement ? DAN : '' ;
+
+DRUK := 'druk';
+AF := 'af';
+SCHRIJF := 'schrijf';
+OP := 'op';
+LEES := 'lees';
+IN := 'in';
+LAAT := 'laat';
+ZIJN := 'zijn';
+MAAK := 'maak';
 VAN := 'van';
+VOEG := 'voeg';
+TOE := 'toe';
+TEL := 'tel';
+BIJ := 'bij';
+SOM := 'som';
+TREK := 'trek';
+VERSCHIL := 'verschil';
+VERMENIGVULDIG := 'vermenigvuldig';
+MET := 'met';
+PRODUCT := 'product';
+DEEL := 'deel';
+DOOR := 'door';
+QUOTIENT := 'quotiënt';
+MODULO := 'modulo';
+VERHOOG := 'verhoog';
+VERLAAG := 'verlaag';
+KLEINER := 'kleiner';
+GROTER := 'groter';
+GELIJK := 'gelijk';
+IS := 'is';
+DAN := 'dan';
+AAN := 'aan';
+ALS := 'als';
+ZO := 'zo';
+NIET := 'niet';
+ANDERS := 'anders';
+ZOLANG := 'zolang';
+VOOR := 'voor';
+ELKE := 'elke';
+KLAAR := 'klaar';
+KEES := 'kees';
 EN := 'en';
+VOORGOED := 'voorgoed';
 TRUE := 'waar';
 FALSE := 'onwaar';
 FULLSTOP := '.';
 COMMA := ',';
 QUOTE := '\'';
+COLON := ':';
