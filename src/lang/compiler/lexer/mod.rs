@@ -52,8 +52,7 @@ impl Lexer {
     }
 
     fn next_token(&mut self) -> Result<Option<Token>, CompilerError> {
-        self.skip_whitespace();
-
+        self.continue_while(|c| c.is_whitespace());
         let start_position = self.position;
 
         match self.peek() {
@@ -95,12 +94,6 @@ impl Lexer {
         }
     }
 
-    fn skip_whitespace(&mut self) -> () {
-        if self.peek().is_some_and(|c| c.is_whitespace()) {
-            self.continue_while(|c| c.is_whitespace());
-        }
-    }
-
     fn expect_char(
         &mut self,
         expected: &[char],
@@ -121,7 +114,7 @@ impl Lexer {
     }
 
     fn continue_while(&mut self, f: impl Fn(&char) -> bool) -> Vec<char> {
-        let mut v = vec![*self.next().unwrap()];
+        let mut v = vec![];
         while let Some(c) = self.next_if(&f) {
             v.push(*c);
         }
@@ -187,6 +180,7 @@ impl Lexer {
         if self.peek().is_some_and(|c| *c == ',')
             && self.peek_nth(1).is_some_and(|c| c.is_ascii_digit())
         {
+            str.push(*self.next().unwrap());
             str.extend(self.continue_while(|c| c.is_ascii_digit()));
             Ok(Some(make_token!(
                 FloatLiteral,
