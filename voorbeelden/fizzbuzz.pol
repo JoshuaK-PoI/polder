@@ -1,6 +1,7 @@
-Laat x 1 zijn.
+Laat aantal 100 zijn.
 
-Zolang x kleiner is dan 100:
+Laat x 1 zijn.
+Zolang x niet groter is dan aantal:
   Als de modulo van x en 15 0 is, druk dan "FizzBuzz" af.
   Zo niet, als de modulo van x en 5 0 is, druk dan "Buzz" af.
   Zo niet, als de modulo van x en 3 0 is, druk dan "Fizz" af.
