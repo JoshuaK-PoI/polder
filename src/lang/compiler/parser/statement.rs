@@ -25,6 +25,7 @@ pub(crate) enum Statement {
     If(IfStatement),
     While(WhileStatement),
     Foreach(ForeachStatement),
+    Comment,
 }
 
 impl From<&Statement> for String {
@@ -139,6 +140,10 @@ impl Parser {
             TokenType::KWZolang => self.while_statement(),
             TokenType::KWVoeg => self.method_statement(),
             TokenType::KWVoor => self.foreach_statement(),
+            TokenType::Comment => {
+                self.expect(TokenType::Comment)?;
+                Ok(Statement::Comment)
+            }
             TokenType::KWKlaar => {
                 let start = self.expect(TokenType::KWKlaar)?.span.0;
                 self.expect(TokenType::KWIs)?;
@@ -174,7 +179,7 @@ impl Parser {
             _ => todo!("parse < {} >", self.peek().unwrap().type_),
         }?;
 
-        if self.mode != ParserMode::InThenStatement {
+        if self.mode != ParserMode::InThenStatement && stmt != Statement::Comment {
             self.expect(TokenType::FullStop)
                 .map_err(|_| CompilerError {
                     kind: ErrorCode::StatementNotTerminated,
@@ -346,7 +351,8 @@ impl Parser {
                         ))
                     }
                     _ => {
-                        let expr = match self.expression()?.expression {
+                        let expr = self.expression()?;
+                        let expr = match expr.expression {
                             ExpressionType::Literal(ref lit) => {
                                 if *type_ != Into::<PolderType>::into(lit) {
                                     Err(CompilerError {

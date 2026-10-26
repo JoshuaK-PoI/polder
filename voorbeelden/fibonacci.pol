@@ -1,0 +1,38 @@
+P.S. Term 93 in de Fibonacci-volgorde (7540113804746346429) is het grootste getal wat in een 64-bit integer past.
+Laat aantal 93 zijn.
+
+Laat resultaat een lijst van getallen zijn.
+
+Als aantal kleiner is dan 1:
+  Druk "Te weinig aantal, moet minstens 1 zijn" af.
+Anders:
+  Laat vorige2 0 zijn.
+  Laat vorige1 1 zijn.
+
+  Voeg vorige2 aan resultaat toe.
+
+  Als aantal 1 is:
+    Druk "Klaar" af.
+  Anders:
+    Voeg vorige1 aan resultaat toe.
+
+    Laat i 3 zijn.
+
+    P.S.: Variabelen zijn nog niet gescoped tot een enkel blok; dus 'huidige' moet buiten de Zolang-lus
+    P.S.  gedefinieerd worden.
+    Laat huidige een getal zijn.
+
+    Zolang i niet groter is dan aantal:
+      Maak van huidige de som van vorige1 en vorige2.
+      Voeg huidige aan resultaat toe.
+
+      Maak van vorige2 vorige1.
+      Maak van vorige1 huidige.
+      Verhoog i.
+    Klaar is Kees.
+
+  Klaar is Kees.
+
+Klaar is Kees.
+
+Druk resultaat af.

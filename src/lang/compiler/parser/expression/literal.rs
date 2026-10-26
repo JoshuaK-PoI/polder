@@ -132,7 +132,15 @@ impl std::fmt::Display for Literal {
             "{}",
             match self {
                 Literal::String(s) => s.to_string(),
-                Literal::Integer(i) => i.to_string(),
+                Literal::Integer(i) => i
+                    .to_string()
+                    .as_bytes()
+                    .rchunks(3)
+                    .rev()
+                    .map(std::str::from_utf8)
+                    .collect::<Result<Vec<&str>, _>>()
+                    .unwrap()
+                    .join("."),
                 Literal::Float(f) => f.to_string().replace('.', ","),
                 Literal::Boolean(b) => (if *b { "waar" } else { "onwaar" }).to_string(),
                 Literal::Char(c) => c.to_string(),

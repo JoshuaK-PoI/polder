@@ -142,13 +142,10 @@ impl Parser {
         let mut ast = Vec::new();
 
         while parser.peek().is_some() {
-            if parser.next_is(TokenType::Comment) {
-                let _ = parser.next();
-                continue;
-            }
-
-            ast.push(parser.stmt()?);
+            ast.push(parser.stmt()?)
         }
+
+        ast.retain(|stmt| *stmt != Statement::Comment);
 
         Ok(ast)
     }

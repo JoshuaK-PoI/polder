@@ -69,6 +69,7 @@ impl Interpreter {
             Statement::Foreach(foreach_statement) => {
                 self.interpret_foreach_statement(foreach_statement, io)
             }
+            Statement::Comment => Ok(()), /* no-op */
         }
     }
 
