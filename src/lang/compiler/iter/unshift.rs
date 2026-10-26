@@ -1,6 +1,5 @@
 use std::iter::Peekable;
 
-use peekable_next::PeekableNext;
 
 /// Allows vector elements to be taken from the front of the vector.
 /// It is a safe wrapper for:
@@ -17,19 +16,6 @@ pub(crate) trait Unshift<T> {
     ///
     /// Returns `None` if the vector is empty.
     fn unshift(&mut self) -> Option<T>;
-}
-
-impl<T, U> Unshift<U> for PeekableNext<T>
-where
-    T: Iterator<Item = U>,
-{
-    fn unshift(&mut self) -> Option<U> {
-        if self.peek().is_none() {
-            None
-        } else {
-            self.next()
-        }
-    }
 }
 
 impl<T, U> Unshift<U> for Peekable<T>

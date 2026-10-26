@@ -151,12 +151,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
-name = "peekable_next"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92eab1651b2d883abb702ef8fbcde584bd514d8357922585c722c8b5ede53bf4"
-
-[[package]]
 name = "phf"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -206,7 +200,6 @@ dependencies = [
  "ariadne",
  "clap",
  "log",
- "peekable_next",
  "phf",
  "serde",
  "serde_json",
