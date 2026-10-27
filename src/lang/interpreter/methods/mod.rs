@@ -22,6 +22,7 @@ pub(crate) fn call_method(
         PolderType::Array(_) => match method.as_str() {
             "lengte" => array::length(variable, variable_identifier, span),
             "Voeg toe" => array::push(variable, variable_identifier, arguments, span),
+            "element" => array::get(variable, variable_identifier, arguments, span),
             fun => Err(runtime_error!(
                 span,
                 RuntimeErrorKind::UnsupportedFunction,

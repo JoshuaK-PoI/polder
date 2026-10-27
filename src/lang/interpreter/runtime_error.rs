@@ -55,6 +55,8 @@ pub(crate) enum RuntimeErrorKind {
     VariableIsConst,
     MismatchedType,
     NoArgumentsProvided,
+    InvalidArgument,
+    InvalidComparison,
     NoInputGiven,
     DivideByZero,
     CannotCalculateNonNumeric,
@@ -72,7 +74,9 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::VariableIsConst => "kan niet opnieuw worden toegewezen".to_string(),
             RuntimeErrorKind::MismatchedType => "Verkeerd type".to_string(),
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
+            RuntimeErrorKind::InvalidArgument => "Ongeldig argument".to_string(),
             RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
+            RuntimeErrorKind::InvalidComparison => "Kan geen vergelijking tussen verschillende types uitvoeren".to_string(),
             RuntimeErrorKind::DivideByZero => "Kan niet door nul delen".to_string(),
             RuntimeErrorKind::CannotCalculateNonNumeric => {
                 "Rekenen kan alleen met getallen of kommagetallen".to_string()

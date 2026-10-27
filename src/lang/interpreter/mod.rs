@@ -118,7 +118,7 @@ impl Interpreter {
         match &expression.expression {
             ExpressionType::Literal(lit) => Ok(StoreValue::Literal(lit.clone())),
             ExpressionType::Unary(un) => self.interpret_unary_expression(un),
-            ExpressionType::Binary(bin) => self.interpret_binary_expression(bin),
+            ExpressionType::Binary(bin) => self.interpret_binary_expression(bin, expression.span),
             ExpressionType::Identifier(ident) => {
                 let variable = self.get_from_store(ident, expression.span)?;
                 match variable.get_value() {
@@ -167,10 +167,14 @@ impl Interpreter {
     fn interpret_binary_expression(
         &self,
         expression: &BinaryExpression,
+        span: (usize, usize),
     ) -> Result<StoreValue, RuntimeError> {
         let lhs = self.interpret_expression(&expression.lhs)?;
         let rhs = self.interpret_expression(&expression.rhs)?;
 
+        if expression.op == BinaryOp::Equal {
+            return self.interpret_equality_expression(lhs, rhs, span);
+        }
         self.check_numeric(&lhs, &expression.lhs)?;
         self.check_numeric(&rhs, &expression.rhs)?;
 
@@ -205,7 +209,61 @@ impl Interpreter {
             BinaryOp::Modulo => Ok(lhs % rhs),
             BinaryOp::Less => Ok(Literal::Boolean(lhs < rhs)),
             BinaryOp::Greater => Ok(Literal::Boolean(lhs > rhs)),
-            BinaryOp::Equal => Ok(Literal::Boolean(lhs == rhs)),
+            _ => unreachable!(),
+        }?))
+    }
+
+    fn interpret_equality_expression(
+        &self,
+        lhs: StoreValue,
+        rhs: StoreValue,
+        span: (usize, usize),
+    ) -> Result<StoreValue, RuntimeError> {
+        Ok(StoreValue::Literal(match lhs {
+            StoreValue::Literal(lhs) => match rhs {
+                StoreValue::Literal(rhs) => Ok(Literal::Boolean(lhs == rhs)),
+                StoreValue::Array(_) => Err(runtime_error!(
+                    span,
+                    RuntimeErrorKind::InvalidComparison,
+                    "".to_string(),
+                    format!(
+                        "Incompatibele types aan de linker- en rechterkant van de vergelijking ({}, {})",
+                        lhs.get_type(),
+                        rhs.get_type()
+                    )
+                )),
+            },
+            StoreValue::Array(lhs) => match rhs {
+                StoreValue::Array(rhs) => {
+                    if lhs.len() != rhs.len() {
+                        return Ok(StoreValue::Literal(Literal::Boolean(false)));
+                    }
+
+                    for (index, element) in lhs.iter().enumerate() {
+                        let rhs_elem = rhs.get(index);
+                        if rhs_elem.is_none() {
+                            return Ok(StoreValue::Literal(Literal::Boolean(false)));
+                        }
+                        let rhs_elem = rhs_elem.unwrap();
+
+                        if *element != *rhs_elem {
+                            return Ok(StoreValue::Literal(Literal::Boolean(false)));
+                        }
+                    }
+
+                    Ok(Literal::Boolean(true))
+                }
+                StoreValue::Literal(rhs) => Err(runtime_error!(
+                    span,
+                    RuntimeErrorKind::InvalidComparison,
+                    "".to_string(),
+                    format!(
+                        "Incompatibele types aan de linker- en rechterkant van de vergelijking ({}, {})",
+                        lhs.get(0).unwrap().get_type(),
+                        rhs.get_type()
+                    )
+                )),
+            },
         }?))
     }
 

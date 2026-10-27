@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Serialize;
 
 use crate::lang::compiler::{
@@ -880,6 +881,10 @@ impl Parser {
         match self.peek().unwrap().type_ {
             TokenType::KWVoeg => {
                 let start = self.expect(TokenType::KWVoeg)?.span.0;
+                if self.mode == ParserMode::InThenStatement {
+                    self.expect(TokenType::KWDan)?;
+                }
+                
                 let mut arguments: Vec<Expression> = Vec::new();
                 let mut multipart = false;
 
