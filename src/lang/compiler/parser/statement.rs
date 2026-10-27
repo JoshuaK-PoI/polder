@@ -1,4 +1,3 @@
-use log::debug;
 use serde::Serialize;
 
 use crate::lang::compiler::{
@@ -267,6 +266,24 @@ impl Parser {
                     },
                 ))
             }
+            ExpressionType::ArrayDecl(elements) => {
+                let expr_span_start = elements.get(0).unwrap().span.0;
+                let expr_span_end = elements.get(elements.len() - 1).unwrap().span.1;
+
+                self.expect(TokenType::KWZijn)?;
+
+                Ok(Statement::VariableDeclaration(
+                    VariableDeclarationStatement {
+                        identifier: identifier.value,
+                        value_expression: Expression {
+                            expression: ArrayDecl(elements),
+                            span: (expr_span_start, expr_span_end),
+                        },
+                        is_const,
+                        declared_at: identifier.span,
+                    },
+                ))
+            }
             ExpressionType::Type(ref type_) => {
                 if is_indefinite_article {
                     if is_const {
@@ -306,51 +323,6 @@ impl Parser {
                 }
 
                 match *type_ {
-                    PolderType::Array(_) => {
-                        let mut elements: Vec<Expression> = Vec::new();
-
-                        loop {
-                            elements.push(self.expression()?);
-
-                            if self.next_is_then_unshift(TokenType::Comma) {
-                                continue;
-                            }
-
-                            if self.next_is_then_unshift(TokenType::KWEn) {
-                                elements.push(self.expression()?);
-                                break;
-                            }
-
-                            return Err(CompilerError {
-                                kind: ErrorCode::InvalidExpression,
-                                message: format!(
-                                    "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
-                                    self.peek().unwrap().type_
-                                ),
-                                span_message: format!(
-                                    "Mogelijk ben je 'en' vergeten vóór het laatste element."
-                                ),
-                                span: self.peek().unwrap().span,
-                            });
-                        }
-
-                        let expr_span_start = elements.get(0).unwrap().span.0;
-                        let expr_span_end = elements.get(elements.len() - 1).unwrap().span.1;
-
-                        self.expect(TokenType::KWZijn)?;
-
-                        Ok(Statement::VariableDeclaration(
-                            VariableDeclarationStatement {
-                                identifier: identifier.value,
-                                value_expression: Expression {
-                                    expression: ArrayDecl(elements),
-                                    span: (expr_span_start, expr_span_end),
-                                },
-                                is_const,
-                                declared_at: identifier.span,
-                            },
-                        ))
-                    }
                     _ => {
                         let expr = self.expression()?;
                         let expr = match expr.expression {
@@ -884,7 +856,7 @@ impl Parser {
                 if self.mode == ParserMode::InThenStatement {
                     self.expect(TokenType::KWDan)?;
                 }
-                
+
                 let mut arguments: Vec<Expression> = Vec::new();
                 let mut multipart = false;
 

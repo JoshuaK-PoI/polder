@@ -27,6 +27,7 @@ macro_rules! runtime_error {
     };
 }
 
+#[derive(Debug, Clone)]
 pub(crate) struct RuntimeError {
     pub(crate) message: String,
     pub(crate) span_message: String,

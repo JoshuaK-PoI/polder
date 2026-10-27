@@ -369,15 +369,19 @@ impl Interpreter {
         let condition = self.interpret_expression(&statement.predicate)?;
 
         if self.is_truthy(&condition) {
+            self.store.up_scope();
             statement
                 .then_statements
                 .iter()
                 .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+            self.store.dn_scope();
         } else {
+            self.store.up_scope();
             statement
                 .else_statements
                 .iter()
                 .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+            self.store.dn_scope();
         }
 
         Ok(())
@@ -391,11 +395,13 @@ impl Interpreter {
         let mut condition = self.interpret_expression(&statement.predicate)?;
 
         while self.is_truthy(&condition) {
+            self.store.up_scope();
             statement
                 .then_statements
                 .iter()
                 .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
             condition = self.interpret_expression(&statement.predicate)?;
+            self.store.dn_scope();
         }
 
         Ok(())
@@ -480,6 +486,7 @@ impl Interpreter {
                 match store_value {
                     StoreValue::Array(elements) => {
                         for (index, element) in elements.iter().enumerate() {
+                            self.store.up_scope();
                             self.store.declare(
                                 foreach_statement.element_binding.clone(),
                                 Variable {
@@ -511,12 +518,7 @@ impl Interpreter {
                                 self.interpret_statement(stmt.to_owned(), io)
                             })?;
 
-                            self.store.delete(&foreach_statement.element_binding);
-
-                            if foreach_statement.index_binding.is_some() {
-                                self.store
-                                    .delete(&foreach_statement.index_binding.as_ref().unwrap())
-                            }
+                            self.store.dn_scope();
                         }
                     }
                     _ => unreachable!(),

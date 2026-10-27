@@ -6,11 +6,11 @@ P.S.
 P.S.  Regel 110 (Engels: Rule 110) is de enige elementaire cellulaire automaat waarvan Turingvolledigheid is bewezen.
 P.S.  Regel 110 werd voor het eerst beschreven door Stephen Wolfram in zijn boek A New Kind of Science.
 P.S.  
-P.S.  Het uitvoeren van Regel 110 in Polder is een bewijs dat de taal Turing-compleet is.
+P.S.  Het uitvoeren van Regel 110 in Polder is een bewijs dat de taal Turingvolledig is.
 
 P.S.  Setup: regel met een enkele levende cel aan het einde
 
-Laat kolombreedte 10 zijn.
+Laat kolombreedte 50 zijn.
 Laat regellengte het verschil van kolombreedte en 2 zijn.
 Laat regel een lijst van letters zijn.
 
@@ -22,15 +22,14 @@ Klaar is Kees.
 
 Voeg '*' aan regel toe.
 
-
 P.S.  Hoofdlus: Bijwerken van de cellen voor de volgende iteratie
 
 Maak van i 0.
 Zolang i niet groter is dan regellengte:
-  Laat volgende een lijst van letters zijn.
+  Laat volgende een lijst van ' ' zijn.
 
   Laat j 1 zijn.
-  Zolang j kleiner is dan kolombreedte:
+  Zolang j kleiner is dan kolombreedte min 1:
     Laat patroon een lijst van letters zijn.
     Voeg het element op plek j min 1 van regel aan patroon toe.
     Voeg het element op plek j van regel aan patroon toe.
@@ -50,6 +49,8 @@ Zolang i niet groter is dan regellengte:
     Verhoog j.
   Klaar is Kees.
   Voeg ' ' aan volgende toe.
+
+  P.S. Omwisselen van de buffer naar de regel 
   Maak van regel volgende.
   Druk regel af.
   Verhoog i.

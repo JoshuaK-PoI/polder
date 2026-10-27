@@ -54,16 +54,6 @@ impl Parser {
         }
     }
 
-    fn next_nth_is(&self, lookahead: isize, token_type: TokenType) -> bool {
-        match self
-            .tokens
-            .get(std::cmp::max(0, self.position as isize + (lookahead - 1)) as usize)
-        {
-            Some(token) if token.type_ == token_type => true,
-            _ => false,
-        }
-    }
-
     fn next_nth_is_any_of(&self, lookahead: isize, token_types: &[TokenType]) -> bool {
         match self
             .tokens

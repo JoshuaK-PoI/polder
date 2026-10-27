@@ -9,7 +9,8 @@ use crate::{
 };
 
 pub(crate) struct Store {
-    variables: HashMap<String, Variable>,
+    variables: HashMap<usize, HashMap<String, Variable>>,
+    scope: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,9 +90,28 @@ pub(crate) struct Variable {
 
 impl Store {
     pub(crate) fn new() -> Store {
-        Store {
+        let mut store = Store {
             variables: HashMap::new(),
+            scope: 0,
+        };
+
+        store.variables.insert(store.scope, HashMap::new());
+        store
+    }
+
+    pub(crate) fn up_scope(&mut self) {
+        self.scope += 1;
+        self.variables.insert(self.scope, HashMap::new());
+    }
+
+    pub(crate) fn dn_scope(&mut self) {
+        if self.scope == 0 {
+            panic!("Tried to exit scope of global environment");
         }
+
+        // Drop variables created in this scope
+        self.variables.remove(&self.scope);
+        self.scope -= 1;
     }
 
     pub(crate) fn declare(
@@ -100,7 +120,12 @@ impl Store {
         variable: Variable,
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        if self.variable_defined(&identifier) {
+        if self
+            .variables
+            .get(&self.scope)
+            .expect("variable store at scope does not exist")
+            .contains_key(&identifier)
+        {
             return Err(runtime_error!(
                 range,
                 RuntimeErrorKind::VariableAlreadyDefined,
@@ -110,8 +135,14 @@ impl Store {
 
         Store::check_type_compatible(&identifier, &variable, None)?;
 
-        self.variables.insert(identifier, variable);
+        self.insert(identifier, variable);
         Ok(())
+    }
+
+    pub(crate) fn insert(&mut self, identifier: String, variable: Variable) {
+        self.variables.entry(self.scope).and_modify(|m| {
+            m.insert(identifier, variable);
+        });
     }
 
     pub(crate) fn write(
@@ -120,57 +151,47 @@ impl Store {
         value: (StoreValue, (usize, usize)),
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        if !self.variable_defined(&identifier) {
-            return Err(runtime_error!(
+        let (variable, scope) = match self.search_scopes(&identifier, self.scope) {
+            Some(v) => Ok(v),
+            None => Err(runtime_error!(
                 range,
                 RuntimeErrorKind::UndefinedVariable,
                 identifier
-            ));
-        }
-
-        let variable = self
-            .get(&identifier)
-            .expect("unreachable (already checked existence");
+            )),
+        }?;
 
         self.check_const(&identifier, variable, range)?;
         Store::check_type_compatible(&identifier, variable, Some(&value))?;
 
-        self.variables
-            .entry(identifier)
-            .and_modify(|variable| variable.value = Some((value.0.clone(), value.1)));
+        self.variables.entry(scope).and_modify(|m| {
+            m.entry(identifier)
+                .and_modify(|variable| variable.value = Some((value.0.clone(), value.1)));
+        });
 
         Ok(())
     }
-
-    pub(crate) fn get(&self, identifier: &str) -> Option<&Variable> {
-        self.variables.get(identifier)
-    }
-
     pub(crate) fn write_input(
         &mut self,
         identifier: String,
         input: String,
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        if !self.variable_defined(&identifier) {
-            return Err(runtime_error!(
+        let (variable, scope) = match self.search_scopes(&identifier, self.scope) {
+            Some(v) => Ok(v),
+            None => Err(runtime_error!(
                 range,
                 RuntimeErrorKind::UndefinedVariable,
                 identifier
-            ));
-        }
+            )),
+        }?;
 
-        self.check_const(
-            &identifier,
-            self.get(&identifier).expect("unreachable"),
-            range,
-        )?;
+        self.check_const(&identifier, variable, range)?;
+
         let store_value = self.try_marshalling_type(&identifier, input)?;
         let mut modified: Result<(), RuntimeError> = Ok(());
 
-        self.variables
-            .entry(identifier.clone())
-            .and_modify(|variable| {
+        self.variables.entry(scope).and_modify(|m| {
+            m.entry(identifier.clone()).and_modify(|variable| {
                 if variable.value.is_some()
                     && Store::check_type_compatible(
                         &identifier,
@@ -197,12 +218,13 @@ impl Store {
 
                 variable.value = Some((store_value, range));
             });
+        });
 
         modified
     }
 
-    fn variable_defined(&self, identifier: &str) -> bool {
-        self.variables.contains_key(identifier)
+    pub(crate) fn get(&self, identifier: &str) -> Option<&Variable> {
+        self.search_scopes(identifier, self.scope).map(|s| s.0)
     }
 
     pub(crate) fn check_type_compatible(
@@ -222,12 +244,7 @@ impl Store {
                 }
                 StoreValue::Array(ref elements) => match &variable.type_ {
                     PolderType::Array(_) => elements.into_iter().try_for_each(|element| {
-                        Store::type_check_literal(
-                            identifier,
-                            &variable.type_,
-                            &element,
-                            value.1,
-                        )
+                        Store::type_check_literal(identifier, &variable.type_, &element, value.1)
                     }),
                     _ => Err(runtime_error!(
                         value.1,
@@ -241,6 +258,19 @@ impl Store {
                     )),
                 },
             },
+        }
+    }
+
+    fn search_scopes(&self, identifier: &str, scope: usize) -> Option<(&Variable, usize)> {
+        match self
+            .variables
+            .get(&scope)
+            .expect("variable store at scope does not exist")
+            .get(identifier)
+        {
+            Some(var) => Some((var, scope)),
+            None if scope == 0 => None,
+            None => self.search_scopes(identifier, scope - 1),
         }
     }
 
@@ -268,7 +298,7 @@ impl Store {
                                 RuntimeErrorKind::MismatchedType,
                                 format!("{}:", value),
                                 format!("{} is een {}, {} (van type {}) kan hier niet aan worden toegevoegd.", 
-                                    identifier, 
+                                    identifier,
                                     literal_type,
                                     value,
                                     value.get_type(),
@@ -332,10 +362,6 @@ impl Store {
             PolderType::Char => try_char(input),
             PolderType::Array(_) => unimplemented!("Marshalling into array type"),
         }
-    }
-    
-    pub(crate) fn delete(&mut self, identifier: &String) -> () {
-        self.variables.remove(identifier);
     }
 }
 

@@ -1,4 +1,5 @@
 mod array;
+mod string;
 
 use crate::{
     lang::{
@@ -27,7 +28,23 @@ pub(crate) fn call_method(
                 span,
                 RuntimeErrorKind::UnsupportedFunction,
                 fun,
-                format!("Methode '{}' is geen functie voor een {}", fun, variable.type_)
+                format!(
+                    "Methode '{}' is geen functie voor een {}",
+                    fun, variable.type_
+                )
+            )),
+        },
+        PolderType::String => match method.as_str() {
+            "Voeg toe" => string::push(variable, variable_identifier, arguments, span),
+            "element" => string::get(variable, variable_identifier, arguments, span),
+            fun => Err(runtime_error!(
+                span,
+                RuntimeErrorKind::UnsupportedFunction,
+                fun,
+                format!(
+                    "Methode '{}' is geen functie voor een {}",
+                    fun, variable.type_
+                )
             )),
         },
         val => todo!("Implement call_method for {:?}", val),

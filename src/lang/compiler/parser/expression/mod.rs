@@ -13,7 +13,6 @@ use crate::lang::compiler::{
 };
 
 use literal::{Literal, literal};
-use log::debug;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -204,9 +203,7 @@ impl Parser {
         } else {
             let type_ = self.parse_type()?;
             match type_.0 {
-                PolderType::Array(_) if self.next_is_any_of(LITERALS) => {
-                    self.parse_array_literals()
-                }
+                PolderType::Array(inner) if inner.is_none() => self.parse_array_members(),
                 _ => Ok(Expression {
                     expression: ExpressionType::Type(type_.0),
                     span: type_.1,
@@ -215,7 +212,7 @@ impl Parser {
         }
     }
 
-    fn parse_array_literals(&mut self) -> CompilerResult<Expression> {
+    fn parse_array_members(&mut self) -> CompilerResult<Expression> {
         let mut elements: Vec<Expression> = Vec::new();
         let mut multipart = false;
         loop {

@@ -1,4 +1,3 @@
-use log::debug;
 use serde::Serialize;
 
 use super::super::{CompilerError, ErrorCode, lexer::token::TokenType};
