@@ -21,7 +21,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/target/debug/polder",
       "preLaunchTask": "rust: cargo build",
-      "args": ["--input", "/Users/joshua/Documents/personal/polder/tests/cases/besturingsstroom/fouten/08_klaar_is_kees_zonder_punt.pol"],
+      "args": ["--input", "/Users/joshua/Documents/personal/polder/tests/cases/lijsten/voorbeelden/01_lijsten.pol"],
       "cwd": "${workspaceFolder}"
     }
   ]

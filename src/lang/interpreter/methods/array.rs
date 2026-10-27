@@ -1,3 +1,5 @@
+use log::debug;
+
 use crate::{
     lang::{
         compiler::parser::expression::literal::Literal,
@@ -70,6 +72,77 @@ pub(super) fn push(
             RuntimeErrorKind::UnsupportedFunction,
             lit,
             format!("Kan {} niet toevoegen aan een {}", lit, variable.type_)
+        )),
+    }
+}
+
+pub(super) fn get(
+    variable: &Variable,
+    variable_identifier: &String,
+    arguments: Vec<(StoreValue, (usize, usize))>,
+    span: (usize, usize),
+) -> Result<StoreValue, RuntimeError> {
+    debug!("Get from array: {:?} {:?}", variable, arguments);
+
+    let arr = match variable.value {
+        Some(ref value) => match value.0 {
+            StoreValue::Array(ref arr) => arr,
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
+    };
+
+    let index = match arguments.get(0) {
+        Some(store_value) => match store_value.0 {
+            StoreValue::Literal(ref lit) => match lit {
+                Literal::Integer(int) => Ok(int),
+                _ => Err(runtime_error!(
+                    span,
+                    RuntimeErrorKind::InvalidArgument,
+                    variable_identifier,
+                    format!("Kan alleen indexeren met een getal")
+                )),
+            },
+            _ => Err(runtime_error!(
+                span,
+                RuntimeErrorKind::InvalidArgument,
+                variable_identifier,
+                format!("Kan alleen indexeren met een getal")
+            )),
+        },
+        None => Err(runtime_error!(
+            span,
+            RuntimeErrorKind::NoArgumentsProvided,
+            variable_identifier,
+            format!(
+                "Verwachtte een argument om {} mee te indexeren",
+                variable_identifier
+            )
+        )),
+    }?;
+
+    if index < &0 {
+        return Err(runtime_error!(
+            span,
+            RuntimeErrorKind::InvalidArgument,
+            variable_identifier,
+            format!(
+                "{} kan niet geindexeerd worden met een negatief getal",
+                variable_identifier
+            )
+        ));
+    }
+
+    match arr.get(*index as usize) {
+        Some(value) => Ok(StoreValue::Literal(value.to_owned())),
+        None => Err(runtime_error!(
+            span,
+            RuntimeErrorKind::VariableHasNoValue,
+            variable_identifier,
+            format!(
+                "{} heeft geen waarde op plek {}",
+                variable_identifier, index
+            )
         )),
     }
 }
