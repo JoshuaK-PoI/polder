@@ -88,6 +88,7 @@ pub(crate) struct Variable {
     pub(crate) is_const: bool,
 }
 
+#[hotpath::measure_all]
 impl Store {
     pub(crate) fn new() -> Store {
         let mut store = Store {
@@ -109,14 +110,20 @@ impl Store {
             panic!("Tried to exit scope of global environment");
         }
 
-        // Drop variables created in this scope
         self.variables.remove(&self.scope);
         self.scope -= 1;
     }
 
+    pub(crate) fn clean_scope(&mut self) {
+        // Drop variables created in this scope
+        self.variables.entry(self.scope).and_modify(|map| {
+            map.clear();
+        });
+    }
+
     pub(crate) fn declare(
         &mut self,
-        identifier: String,
+        identifier: &String,
         variable: Variable,
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
@@ -124,7 +131,7 @@ impl Store {
             .variables
             .get(&self.scope)
             .expect("variable store at scope does not exist")
-            .contains_key(&identifier)
+            .contains_key(identifier)
         {
             return Err(runtime_error!(
                 range,
@@ -139,19 +146,19 @@ impl Store {
         Ok(())
     }
 
-    pub(crate) fn insert(&mut self, identifier: String, variable: Variable) {
+    pub(crate) fn insert(&mut self, identifier: &String, variable: Variable) {
         self.variables.entry(self.scope).and_modify(|m| {
-            m.insert(identifier, variable);
+            m.insert(identifier.to_string(), variable);
         });
     }
 
     pub(crate) fn write(
         &mut self,
-        identifier: String,
+        identifier: &String,
         value: (StoreValue, (usize, usize)),
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        let (variable, scope) = match self.search_scopes(&identifier, self.scope) {
+        let (variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
             None => Err(runtime_error!(
                 range,
@@ -164,7 +171,7 @@ impl Store {
         Store::check_type_compatible(&identifier, variable, Some(&value))?;
 
         self.variables.entry(scope).and_modify(|m| {
-            m.entry(identifier)
+            m.entry(identifier.clone())
                 .and_modify(|variable| variable.value = Some((value.0.clone(), value.1)));
         });
 
@@ -176,7 +183,7 @@ impl Store {
         input: String,
         range: (usize, usize),
     ) -> Result<(), RuntimeError> {
-        let (variable, scope) = match self.search_scopes(&identifier, self.scope) {
+        let (variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
             None => Err(runtime_error!(
                 range,
@@ -224,7 +231,7 @@ impl Store {
     }
 
     pub(crate) fn get(&self, identifier: &str) -> Option<&Variable> {
-        self.search_scopes(identifier, self.scope).map(|s| s.0)
+        self.search_scopes(identifier, &self.scope).map(|s| s.0)
     }
 
     pub(crate) fn check_type_compatible(
@@ -261,16 +268,16 @@ impl Store {
         }
     }
 
-    fn search_scopes(&self, identifier: &str, scope: usize) -> Option<(&Variable, usize)> {
+    fn search_scopes(&self, identifier: &str, scope: &usize) -> Option<(&Variable, usize)> {
         match self
             .variables
-            .get(&scope)
-            .expect("variable store at scope does not exist")
+            .get(scope)
+            .expect("variable store at scope {scope} does not exist")
             .get(identifier)
         {
-            Some(var) => Some((var, scope)),
-            None if scope == 0 => None,
-            None => self.search_scopes(identifier, scope - 1),
+            Some(var) => Some((var, *scope)),
+            None if *scope == 0 => None,
+            None => self.search_scopes(identifier, &(scope - 1)),
         }
     }
 

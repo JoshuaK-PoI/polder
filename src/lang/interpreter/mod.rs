@@ -36,24 +36,24 @@ pub(crate) struct Interpreter {
     store: Store,
 }
 
+#[hotpath::measure_all]
 impl Interpreter {
     pub(crate) fn new() -> Interpreter {
         Interpreter {
             store: Store::new(),
         }
     }
-
-    pub(crate) fn run(&mut self, io: &mut Io, ast: &mut Vec<Statement>) -> Result<(), PolderError> {
-        let mut ast = ast.iter_mut().peekable();
+    pub(crate) fn run(&mut self, io: &mut Io, ast: &Vec<Statement>) -> Result<(), PolderError> {
+        let mut ast = ast.iter().peekable();
 
         while let Some(stmt) = ast.unshift() {
-            self.interpret_statement(stmt.to_owned(), io)?;
+            self.interpret_statement(stmt, io)?;
         }
 
         Ok(())
     }
 
-    fn interpret_statement(&mut self, stmt: Statement, io: &mut Io) -> Result<(), RuntimeError> {
+    fn interpret_statement(&mut self, stmt: &Statement, io: &mut Io) -> Result<(), RuntimeError> {
         match stmt {
             Statement::VariableDeclaration(declaration) => {
                 self.interpret_variable_declaration(declaration)
@@ -75,7 +75,7 @@ impl Interpreter {
 
     fn interpret_variable_declaration(
         &mut self,
-        declaration: VariableDeclarationStatement,
+        declaration: &VariableDeclarationStatement,
     ) -> Result<(), RuntimeError> {
         let (store_value, expression_type) = match &declaration.value_expression.expression {
             ExpressionType::Type(type_) => (None, type_.to_owned()),
@@ -97,17 +97,17 @@ impl Interpreter {
         };
 
         self.store
-            .declare(declaration.identifier, variable, declaration.declared_at)?;
+            .declare(&declaration.identifier, variable, declaration.declared_at)?;
         Ok(())
     }
 
     fn interpret_variable_assignment(
         &mut self,
-        assignment: VariableAssignmentStatement,
+        assignment: &VariableAssignmentStatement,
     ) -> Result<(), RuntimeError> {
         let literal = self.interpret_expression(&assignment.expression)?;
         self.store.write(
-            assignment.identifier,
+            &assignment.identifier,
             (literal, assignment.expression.span),
             assignment.expression.span,
         )?;
@@ -269,7 +269,7 @@ impl Interpreter {
 
     fn interpret_intrinsic(
         &mut self,
-        intrinsic: IntrinsicStatement,
+        intrinsic: &IntrinsicStatement,
         io: &mut Io,
     ) -> Result<(), RuntimeError> {
         match intrinsic.intrinsic {
@@ -363,7 +363,7 @@ impl Interpreter {
 
     fn interpret_if_statement(
         &mut self,
-        statement: IfStatement,
+        statement: &IfStatement,
         io: &mut Io,
     ) -> Result<(), RuntimeError> {
         let condition = self.interpret_expression(&statement.predicate)?;
@@ -373,14 +373,14 @@ impl Interpreter {
             statement
                 .then_statements
                 .iter()
-                .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+                .try_for_each(|stmt| self.interpret_statement(stmt, io))?;
             self.store.dn_scope();
         } else {
             self.store.up_scope();
             statement
                 .else_statements
                 .iter()
-                .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+                .try_for_each(|stmt| self.interpret_statement(stmt, io))?;
             self.store.dn_scope();
         }
 
@@ -389,20 +389,21 @@ impl Interpreter {
 
     fn interpret_while_statement(
         &mut self,
-        statement: WhileStatement,
+        statement: &WhileStatement,
         io: &mut Io,
     ) -> Result<(), RuntimeError> {
         let mut condition = self.interpret_expression(&statement.predicate)?;
 
+        self.store.up_scope();
         while self.is_truthy(&condition) {
-            self.store.up_scope();
             statement
                 .then_statements
                 .iter()
-                .try_for_each(|stmt| self.interpret_statement(stmt.to_owned(), io))?;
+                .try_for_each(|stmt| self.interpret_statement(stmt, io))?;
             condition = self.interpret_expression(&statement.predicate)?;
-            self.store.dn_scope();
+            self.store.clean_scope();
         }
+        self.store.dn_scope();
 
         Ok(())
     }
@@ -457,7 +458,7 @@ impl Interpreter {
 
     fn interpret_foreach_statement(
         &mut self,
-        foreach_statement: ForeachStatement,
+        foreach_statement: &ForeachStatement,
         io: &mut Io<'_>,
     ) -> Result<(), RuntimeError> {
         let variable = match self.store.get(foreach_statement.list_name.as_str()) {
@@ -488,7 +489,7 @@ impl Interpreter {
                         for (index, element) in elements.iter().enumerate() {
                             self.store.up_scope();
                             self.store.declare(
-                                foreach_statement.element_binding.clone(),
+                                &foreach_statement.element_binding,
                                 Variable {
                                     declared_at: foreach_statement.span,
                                     type_: element.into(),
@@ -500,7 +501,7 @@ impl Interpreter {
 
                             if foreach_statement.index_binding.is_some() {
                                 self.store.declare(
-                                    foreach_statement.index_binding.as_ref().unwrap().clone(),
+                                    foreach_statement.index_binding.as_ref().unwrap(),
                                     Variable {
                                         declared_at: foreach_statement.span,
                                         type_: PolderType::Integer,
@@ -514,9 +515,10 @@ impl Interpreter {
                                 )?;
                             }
 
-                            foreach_statement.statements.iter().try_for_each(|stmt| {
-                                self.interpret_statement(stmt.to_owned(), io)
-                            })?;
+                            foreach_statement
+                                .statements
+                                .iter()
+                                .try_for_each(|stmt| self.interpret_statement(stmt, io))?;
 
                             self.store.dn_scope();
                         }

@@ -19,6 +19,7 @@ mod lang;
 mod logger;
 mod program_options;
 
+#[hotpath::main]
 fn main() {
     let args = args::Args::parse();
 
