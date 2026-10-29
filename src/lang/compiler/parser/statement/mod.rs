@@ -1,7 +1,9 @@
 use serde::Serialize;
 
 use crate::lang::compiler::{
-    Span, lexer::token::{KEYWORDS, LITERALS, Token}, parser::{
+    Span,
+    lexer::token::{KEYWORDS, LITERALS, Token},
+    parser::{
         Parser, ParserMode,
         expression::{
             BinaryExpression,
@@ -25,18 +27,6 @@ pub(crate) enum Statement {
     While(WhileStatement),
     Foreach(ForeachStatement),
     Comment,
-}
-
-impl From<&Statement> for String {
-    fn from(value: &Statement) -> Self {
-        format!("{:?}", value)
-    }
-}
-
-impl std::fmt::Display for Statement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", String::from(self))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
