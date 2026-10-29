@@ -3,10 +3,13 @@ mod string;
 
 use crate::{
     lang::{
-        compiler::parser::types::PolderType,
+        compiler::{
+            Span,
+            parser::{expression::literal::Literal, types::PolderType},
+        },
         interpreter::{
             runtime_error::{RuntimeError, RuntimeErrorKind},
-            store::{StoreValue, Variable},
+            store::Variable,
         },
     },
     runtime_error,
@@ -16,9 +19,9 @@ pub(crate) fn call_method(
     variable: &Variable,
     variable_identifier: &String,
     method: &String,
-    arguments: Vec<(StoreValue, (usize, usize))>,
-    span: (usize, usize),
-) -> Result<StoreValue, RuntimeError> {
+    arguments: Vec<(Literal, Span)>,
+    span: Span,
+) -> Result<Literal, RuntimeError> {
     match &variable.type_ {
         PolderType::Array(_) => match method.as_str() {
             "lengte" => array::length(variable, variable_identifier, span),

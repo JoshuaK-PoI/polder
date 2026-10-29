@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use crate::{
     lang::{
-        compiler::parser::{expression::literal::Literal, types::PolderType},
+        compiler::{
+            Span,
+            parser::{expression::literal::Literal, types::PolderType},
+        },
         interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
     },
     runtime_error,
@@ -13,78 +16,11 @@ pub(crate) struct Store {
     scope: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum StoreValue {
-    Literal(Literal),
-    Array(Vec<Literal>),
-}
-
-impl std::fmt::Display for StoreValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                StoreValue::Literal(literal) => literal.to_string(),
-                StoreValue::Array(values) => values
-                    .into_iter()
-                    .map(|v| v.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", "),
-            }
-        )
-    }
-}
-
-impl StoreValue {
-    pub(crate) fn get_type(&self) -> String {
-        match self {
-            StoreValue::Literal(literal) => literal.get_type(),
-            StoreValue::Array(elements) => elements
-                .into_iter()
-                .map(|literal| literal.get_type())
-                .collect::<Vec<String>>()
-                .join(", "),
-        }
-    }
-
-    pub(crate) fn literal(
-        store_value: StoreValue,
-        range: (usize, usize),
-        func: fn(value: Literal) -> Literal,
-    ) -> Result<StoreValue, RuntimeError> {
-        let lit = StoreValue::unwrap_literal(store_value, range)?;
-        let res = func(lit);
-        Ok(StoreValue::Literal(res))
-    }
-
-    pub(crate) fn unwrap_literal(
-        store_value: StoreValue,
-        range: (usize, usize),
-    ) -> Result<Literal, RuntimeError> {
-        match store_value {
-            StoreValue::Literal(l) => Ok(l),
-            StoreValue::Array(_) => Err(runtime_error!(
-                range,
-                RuntimeErrorKind::CannotOperateOnArray
-            )),
-        }
-    }
-}
-
-impl From<&StoreValue> for PolderType {
-    fn from(value: &StoreValue) -> Self {
-        match value {
-            StoreValue::Literal(literal) => literal.into(),
-            StoreValue::Array(arr) => PolderType::Array(Some(PolderType::get_array_type(arr))),
-        }
-    }
-}
 #[derive(Debug, Clone)]
 pub(crate) struct Variable {
-    pub(crate) declared_at: (usize, usize),
+    pub(crate) declared_at: Span,
     pub(crate) type_: PolderType,
-    pub(crate) value: Option<(StoreValue, (usize, usize))>,
+    pub(crate) value: Option<(Literal, Span)>,
     pub(crate) is_const: bool,
 }
 
@@ -125,7 +61,7 @@ impl Store {
         &mut self,
         identifier: &String,
         variable: Variable,
-        range: (usize, usize),
+        range: Span,
     ) -> Result<(), RuntimeError> {
         if self
             .variables
@@ -155,8 +91,8 @@ impl Store {
     pub(crate) fn write(
         &mut self,
         identifier: &String,
-        value: (StoreValue, (usize, usize)),
-        range: (usize, usize),
+        value: (Literal, Span),
+        range: Span,
     ) -> Result<(), RuntimeError> {
         let (variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
@@ -181,7 +117,7 @@ impl Store {
         &mut self,
         identifier: String,
         input: String,
-        range: (usize, usize),
+        range: Span,
     ) -> Result<(), RuntimeError> {
         let (variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
@@ -237,7 +173,7 @@ impl Store {
     pub(crate) fn check_type_compatible(
         identifier: &str,
         variable: &Variable,
-        input: Option<&(StoreValue, (usize, usize))>,
+        input: Option<&(Literal, Span)>,
     ) -> Result<(), RuntimeError> {
         let value_to_type_check = input.or(variable.value.as_ref());
 
@@ -245,11 +181,8 @@ impl Store {
             // We can't type check an empty value,
             // expect later in the program to handle empty value cases
             None => Ok(()),
-            Some(value) => match value.0 {
-                StoreValue::Literal(ref literal) => {
-                    Store::type_check_literal(identifier, &variable.type_, &literal, value.1)
-                }
-                StoreValue::Array(ref elements) => match &variable.type_ {
+            Some(value) => match &value.0 {
+                Literal::Vec(elements) => match &variable.type_ {
                     PolderType::Array(_) => elements.into_iter().try_for_each(|element| {
                         Store::type_check_literal(identifier, &variable.type_, &element, value.1)
                     }),
@@ -264,6 +197,7 @@ impl Store {
                         )
                     )),
                 },
+                literal => Store::type_check_literal(identifier, &variable.type_, literal, value.1),
             },
         }
     }
@@ -285,7 +219,7 @@ impl Store {
         identifier: &str,
         literal_type: &PolderType,
         value: &Literal,
-        range: (usize, usize),
+        range: Span,
     ) -> Result<(), RuntimeError> {
         if match value {
             Literal::Boolean(_) => *literal_type == PolderType::Boolean,
@@ -293,6 +227,7 @@ impl Store {
             Literal::String(_) => *literal_type == PolderType::String,
             Literal::Integer(_) => *literal_type == PolderType::Integer,
             Literal::Float(_) => *literal_type == PolderType::Float,
+            Literal::Vec(_) => unreachable!("Vector types should be unpacked before typechecking")
         } {
             Ok(())
         } else {
@@ -333,7 +268,7 @@ impl Store {
         &self,
         identifier: &str,
         variable: &Variable,
-        range: (usize, usize),
+        range: Span,
     ) -> Result<(), RuntimeError> {
         if variable.is_const {
             Err(runtime_error!(
@@ -355,7 +290,7 @@ impl Store {
         &self,
         identifier: &str,
         input: String,
-    ) -> Result<StoreValue, RuntimeError> {
+    ) -> Result<Literal, RuntimeError> {
         let type_ = &self
             .get(identifier)
             .expect("try_marshalling_type: attempted to get undefined variable")
@@ -363,7 +298,7 @@ impl Store {
 
         match type_ {
             PolderType::Boolean => try_bool(input),
-            PolderType::String => Ok(StoreValue::Literal(Literal::String(input))),
+            PolderType::String => Ok(Literal::String(input)),
             PolderType::Integer => try_integer(input),
             PolderType::Float => try_float(input),
             PolderType::Char => try_char(input),
@@ -372,10 +307,10 @@ impl Store {
     }
 }
 
-fn try_bool(input: String) -> Result<StoreValue, RuntimeError> {
+fn try_bool(input: String) -> Result<Literal, RuntimeError> {
     match input.as_str() {
-        "waar" => Ok(StoreValue::Literal(Literal::Boolean(true))),
-        "onwaar" => Ok(StoreValue::Literal(Literal::Boolean(false))),
+        "waar" => Ok(Literal::Boolean(true)),
+        "onwaar" => Ok(Literal::Boolean(false)),
         _ => Err(runtime_error!(
             (0, 0),
             RuntimeErrorKind::MismatchedType,
@@ -388,9 +323,9 @@ fn try_bool(input: String) -> Result<StoreValue, RuntimeError> {
 // @TODO: Deduplicate this code in future, has overlap with lexer
 // @TODO: Runtime errors below should not point to source file in the below cases because they are coming from stdin
 // @TODO: Runtime errors below should not abort the program but read from stdin again
-fn try_integer(input: String) -> Result<StoreValue, RuntimeError> {
+fn try_integer(input: String) -> Result<Literal, RuntimeError> {
     match input.parse::<i64>() {
-        Ok(int) => Ok(StoreValue::Literal(Literal::Integer(int))),
+        Ok(int) => Ok(Literal::Integer(int)),
         Err(_) => Err(runtime_error!(
             (0, 0),
             RuntimeErrorKind::MismatchedType,
@@ -400,9 +335,9 @@ fn try_integer(input: String) -> Result<StoreValue, RuntimeError> {
     }
 }
 
-fn try_float(input: String) -> Result<StoreValue, RuntimeError> {
+fn try_float(input: String) -> Result<Literal, RuntimeError> {
     match input.replace(',', ".").parse::<f64>() {
-        Ok(flt) => Ok(StoreValue::Literal(Literal::Float(flt))),
+        Ok(flt) => Ok(Literal::Float(flt)),
         Err(_) => Err(runtime_error!(
             (0, 0),
             RuntimeErrorKind::MismatchedType,
@@ -412,9 +347,9 @@ fn try_float(input: String) -> Result<StoreValue, RuntimeError> {
     }
 }
 
-fn try_char(input: String) -> Result<StoreValue, RuntimeError> {
+fn try_char(input: String) -> Result<Literal, RuntimeError> {
     match input.parse::<char>() {
-        Ok(c) => Ok(StoreValue::Literal(Literal::Char(c))),
+        Ok(c) => Ok(Literal::Char(c)),
         Err(_) => Err(runtime_error!(
             (0, 0),
             RuntimeErrorKind::MismatchedType,
@@ -425,7 +360,7 @@ fn try_char(input: String) -> Result<StoreValue, RuntimeError> {
 }
 
 impl Variable {
-    pub(crate) fn get_value(&self) -> &Option<(StoreValue, (usize, usize))> {
+    pub(crate) fn get_value(&self) -> &Option<(Literal, Span)> {
         &self.value
     }
 }

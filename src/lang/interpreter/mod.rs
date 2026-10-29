@@ -7,6 +7,7 @@ use crate::{
     io::Io,
     lang::{
         compiler::{
+            Span,
             iter::unshift::Unshift,
             parser::{
                 expression::{
@@ -24,7 +25,7 @@ use crate::{
         },
         interpreter::{
             runtime_error::{RuntimeError, RuntimeErrorKind},
-            store::{StoreValue, Variable},
+            store::Variable,
         },
     },
     logger::PolderError,
@@ -114,9 +115,9 @@ impl Interpreter {
         Ok(())
     }
 
-    fn interpret_expression(&self, expression: &Expression) -> Result<StoreValue, RuntimeError> {
+    fn interpret_expression(&self, expression: &Expression) -> Result<Literal, RuntimeError> {
         match &expression.expression {
-            ExpressionType::Literal(lit) => Ok(StoreValue::Literal(lit.clone())),
+            ExpressionType::Literal(lit) => Ok(lit.clone()),
             ExpressionType::Unary(un) => self.interpret_unary_expression(un),
             ExpressionType::Binary(bin) => self.interpret_binary_expression(bin, expression.span),
             ExpressionType::Identifier(ident) => {
@@ -144,31 +145,27 @@ impl Interpreter {
     fn interpret_unary_expression(
         &self,
         expression: &UnaryExpression,
-    ) -> Result<StoreValue, RuntimeError> {
+    ) -> Result<Literal, RuntimeError> {
         let store_value = self.interpret_expression(&expression.expr)?;
 
         match expression.op {
             UnaryOp::Increment => {
                 self.check_numeric(&store_value, &expression.expr)?;
-                StoreValue::literal(store_value, expression.expr.span, |v| {
-                    v + Literal::Integer(1)
-                })
+                Ok(store_value + Literal::Integer(1))
             }
             UnaryOp::Decrement => {
                 self.check_numeric(&store_value, &expression.expr)?;
-                StoreValue::literal(store_value, expression.expr.span, |v| {
-                    v - Literal::Integer(1)
-                })
+                Ok(store_value - Literal::Integer(1))
             }
-            UnaryOp::Negation => StoreValue::literal(store_value, expression.expr.span, |v| !v),
+            UnaryOp::Negation => Ok(!store_value),
         }
     }
 
     fn interpret_binary_expression(
         &self,
         expression: &BinaryExpression,
-        span: (usize, usize),
-    ) -> Result<StoreValue, RuntimeError> {
+        span: Span,
+    ) -> Result<Literal, RuntimeError> {
         let lhs = self.interpret_expression(&expression.lhs)?;
         let rhs = self.interpret_expression(&expression.rhs)?;
 
@@ -178,17 +175,7 @@ impl Interpreter {
         self.check_numeric(&lhs, &expression.lhs)?;
         self.check_numeric(&rhs, &expression.rhs)?;
 
-        let lhs = match lhs {
-            StoreValue::Literal(l) => l,
-            _ => unreachable!(),
-        };
-
-        let rhs = match rhs {
-            StoreValue::Literal(l) => l,
-            _ => unreachable!(),
-        };
-
-        Ok(StoreValue::Literal(match expression.op {
+        Ok(match expression.op {
             BinaryOp::Add => Ok(lhs + rhs),
             BinaryOp::Subtract => Ok(lhs - rhs),
             BinaryOp::Multiply => Ok(lhs * rhs),
@@ -210,50 +197,37 @@ impl Interpreter {
             BinaryOp::Less => Ok(Literal::Boolean(lhs < rhs)),
             BinaryOp::Greater => Ok(Literal::Boolean(lhs > rhs)),
             _ => unreachable!(),
-        }?))
+        }?)
     }
 
     fn interpret_equality_expression(
         &self,
-        lhs: StoreValue,
-        rhs: StoreValue,
-        span: (usize, usize),
-    ) -> Result<StoreValue, RuntimeError> {
-        Ok(StoreValue::Literal(match lhs {
-            StoreValue::Literal(lhs) => match rhs {
-                StoreValue::Literal(rhs) => Ok(Literal::Boolean(lhs == rhs)),
-                StoreValue::Array(_) => Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::InvalidComparison,
-                    "".to_string(),
-                    format!(
-                        "Incompatibele types aan de linker- en rechterkant van de vergelijking ({}, {})",
-                        lhs.get_type(),
-                        rhs.get_type()
-                    )
-                )),
-            },
-            StoreValue::Array(lhs) => match rhs {
-                StoreValue::Array(rhs) => {
+        lhs: Literal,
+        rhs: Literal,
+        span: Span,
+    ) -> Result<Literal, RuntimeError> {
+        Ok(match lhs {
+            Literal::Vec(lhs) => match rhs {
+                Literal::Vec(rhs) => {
                     if lhs.len() != rhs.len() {
-                        return Ok(StoreValue::Literal(Literal::Boolean(false)));
+                        return Ok(Literal::Boolean(false));
                     }
 
                     for (index, element) in lhs.iter().enumerate() {
                         let rhs_elem = rhs.get(index);
                         if rhs_elem.is_none() {
-                            return Ok(StoreValue::Literal(Literal::Boolean(false)));
+                            return Ok(Literal::Boolean(false));
                         }
                         let rhs_elem = rhs_elem.unwrap();
 
                         if *element != *rhs_elem {
-                            return Ok(StoreValue::Literal(Literal::Boolean(false)));
+                            return Ok(Literal::Boolean(false));
                         }
                     }
 
                     Ok(Literal::Boolean(true))
                 }
-                StoreValue::Literal(rhs) => Err(runtime_error!(
+                rhs => Err(runtime_error!(
                     span,
                     RuntimeErrorKind::InvalidComparison,
                     "".to_string(),
@@ -264,7 +238,20 @@ impl Interpreter {
                     )
                 )),
             },
-        }?))
+            lhs => match rhs {
+                Literal::Vec(_) => Err(runtime_error!(
+                    span,
+                    RuntimeErrorKind::InvalidComparison,
+                    "".to_string(),
+                    format!(
+                        "Incompatibele types aan de linker- en rechterkant van de vergelijking ({}, {})",
+                        lhs.get_type(),
+                        rhs.get_type()
+                    )
+                )),
+                rhs => Ok(Literal::Boolean(lhs == rhs)),
+            },
+        }?)
     }
 
     fn interpret_intrinsic(
@@ -274,7 +261,7 @@ impl Interpreter {
     ) -> Result<(), RuntimeError> {
         match intrinsic.intrinsic {
             Intrinsics::Print | Intrinsics::Write => {
-                let store_value: Vec<StoreValue> = intrinsic
+                let store_value: Vec<Literal> = intrinsic
                     .args
                     .clone()
                     .into_iter()
@@ -316,8 +303,8 @@ impl Interpreter {
     fn interpret_method_call(
         &self,
         method_call_expression: &MethodCallExpression,
-        span: (usize, usize),
-    ) -> Result<StoreValue, RuntimeError> {
+        span: Span,
+    ) -> Result<Literal, RuntimeError> {
         match &method_call_expression.class.expression {
             ExpressionType::Identifier(identifier) => {
                 let mut arguments = Vec::new();
@@ -349,16 +336,13 @@ impl Interpreter {
         }
     }
 
-    fn interpret_array(&self, array: &Vec<Expression>) -> Result<StoreValue, RuntimeError> {
+    fn interpret_array(&self, array: &Vec<Expression>) -> Result<Literal, RuntimeError> {
         let mut result = Vec::new();
         for expression in array {
-            result.push(StoreValue::unwrap_literal(
-                self.interpret_expression(expression)?,
-                expression.span,
-            )?)
+            result.push(self.interpret_expression(expression)?)
         }
 
-        Ok(StoreValue::Array(result))
+        Ok(Literal::Vec(result))
     }
 
     fn interpret_if_statement(
@@ -408,23 +392,21 @@ impl Interpreter {
         Ok(())
     }
 
-    fn is_truthy(&self, condition: &StoreValue) -> bool {
+    fn is_truthy(&self, condition: &Literal) -> bool {
         match condition {
-            StoreValue::Literal(literal) => match literal {
-                Literal::Boolean(b) => *b,
-                Literal::Char(c) => *c != '\0',
-                Literal::Float(f) => *f != 0f64,
-                Literal::Integer(i) => *i != 0,
-                Literal::String(s) => !s.is_empty(),
-            },
-            StoreValue::Array(elements) => !elements.is_empty(),
+            Literal::Boolean(b) => *b,
+            Literal::Char(c) => *c != '\0',
+            Literal::Float(f) => *f != 0f64,
+            Literal::Integer(i) => *i != 0,
+            Literal::String(s) => !s.is_empty(),
+            Literal::Vec(v) => !v.is_empty(),
         }
     }
 
     fn get_from_store(
         &self,
         variable_identifier: &String,
-        span: (usize, usize),
+        span: Span,
     ) -> Result<&Variable, RuntimeError> {
         match self.store.get(variable_identifier) {
             Some(variable) => Ok(variable),
@@ -436,23 +418,16 @@ impl Interpreter {
         }
     }
 
-    fn check_numeric(
-        &self,
-        store_value: &StoreValue,
-        expr: &Expression,
-    ) -> Result<(), RuntimeError> {
-        match store_value {
-            StoreValue::Literal(lit)
-                if [PolderType::Integer, PolderType::Float].contains(&(lit).into()) =>
-            {
-                Ok(())
-            }
-            _ => Err(runtime_error!(
+    fn check_numeric(&self, store_value: &Literal, expr: &Expression) -> Result<(), RuntimeError> {
+        if [PolderType::Integer, PolderType::Float].contains(&(store_value).into()) {
+            Ok(())
+        } else {
+            Err(runtime_error!(
                 expr.span,
                 RuntimeErrorKind::CannotCalculateNonNumeric,
                 format!(""),
                 format!("Waarde '{}' is een {}", store_value, store_value.get_type())
-            )),
+            ))
         }
     }
 
@@ -485,7 +460,7 @@ impl Interpreter {
                 }?;
 
                 match store_value {
-                    StoreValue::Array(elements) => {
+                    Literal::Vec(elements) => {
                         for (index, element) in elements.iter().enumerate() {
                             self.store.up_scope();
                             self.store.declare(
@@ -493,7 +468,7 @@ impl Interpreter {
                                 Variable {
                                     declared_at: foreach_statement.span,
                                     type_: element.into(),
-                                    value: Some((StoreValue::Literal(element.clone()), *span)),
+                                    value: Some((element.clone(), *span)),
                                     is_const: true,
                                 },
                                 *span,
@@ -506,7 +481,7 @@ impl Interpreter {
                                         declared_at: foreach_statement.span,
                                         type_: PolderType::Integer,
                                         value: Some((
-                                            StoreValue::Literal(Literal::Integer(index as i64)),
+                                            Literal::Integer(index as i64),
                                             foreach_statement.span,
                                         )),
                                         is_const: true,

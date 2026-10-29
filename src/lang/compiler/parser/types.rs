@@ -1,7 +1,7 @@
 use serde::Serialize;
 
 use super::super::{CompilerError, ErrorCode, lexer::token::TokenType};
-use crate::lang::compiler::{CompilerResult, lexer::token::Token, parser::Parser};
+use crate::lang::compiler::{CompilerResult, Span, lexer::token::Token, parser::Parser};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub(crate) enum PolderType {
@@ -53,15 +53,6 @@ impl PolderType {
             }
         }
     }
-
-    pub(crate) fn get_array_type(
-        arr: &Vec<super::expression::literal::Literal>,
-    ) -> Box<PolderType> {
-        match arr.get(0) {
-            Some(lit) => Box::new(lit.into()),
-            None => panic!("Cannot get type from array literals; no elements in array"),
-        }
-    }
 }
 
 impl From<&PolderType> for String {
@@ -94,7 +85,7 @@ impl std::fmt::Display for PolderType {
 }
 
 impl Parser {
-    pub(crate) fn parse_type(&mut self) -> CompilerResult<(PolderType, (usize, usize))> {
+    pub(crate) fn parse_type(&mut self) -> CompilerResult<(PolderType, Span)> {
         let article = self.expect_any_of(&[
             TokenType::KWArticleDefD,
             TokenType::KWArticleDefH,
@@ -160,8 +151,8 @@ impl Parser {
 
     fn parse_array_type(
         &mut self,
-        span: (usize, usize),
-    ) -> CompilerResult<(PolderType, (usize, usize))> {
+        span: Span,
+    ) -> CompilerResult<(PolderType, Span)> {
         self.expect(TokenType::KWVan)?;
 
         if self.next_is(TokenType::Identifier) {

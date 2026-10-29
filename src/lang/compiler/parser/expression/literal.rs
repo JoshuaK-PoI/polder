@@ -15,6 +15,7 @@ pub(crate) enum Literal {
     Float(f64),
     Char(char),
     Boolean(bool),
+    Vec(Vec<Literal>),
 }
 
 impl std::ops::Add for Literal {
@@ -144,6 +145,11 @@ impl std::fmt::Display for Literal {
                 Literal::Float(f) => f.to_string().replace('.', ","),
                 Literal::Boolean(b) => (if *b { "waar" } else { "onwaar" }).to_string(),
                 Literal::Char(c) => c.to_string(),
+                Literal::Vec(vec) => vec
+                    .iter()
+                    .map(|l| l.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
             }
         )
     }
@@ -157,6 +163,11 @@ impl Into<PolderType> for &Literal {
             Literal::Float(_) => PolderType::Float,
             Literal::Integer(_) => PolderType::Integer,
             Literal::String(_) => PolderType::String,
+            Literal::Vec(v) => PolderType::Array(if v.get(0).is_some() {
+                Some(Box::new(v.get(0).unwrap().into()))
+            } else {
+                None
+            }),
         }
     }
 }
@@ -164,13 +175,23 @@ impl Into<PolderType> for &Literal {
 impl Literal {
     pub(crate) fn get_type(&self) -> String {
         match self {
-            Literal::String(_) => "tekst",
-            Literal::Integer(_) => "getal",
-            Literal::Float(_) => "kommagetal",
-            Literal::Boolean(_) => "waarheid",
-            Literal::Char(_) => "letter",
+            Literal::String(_) => "tekst".to_string(),
+            Literal::Integer(_) => "getal".to_string(),
+            Literal::Float(_) => "kommagetal".to_string(),
+            Literal::Boolean(_) => "waarheid".to_string(),
+            Literal::Char(_) => "letter".to_string(),
+            Literal::Vec(v) => {
+                format!(
+                    "{}{}",
+                    "lijst van".to_string(),
+                    if v.get(0).is_some() {
+                        v.get(0).unwrap().get_type()
+                    } else {
+                        "<onbekend>".to_string()
+                    }
+                )
+            }
         }
-        .to_string()
     }
 }
 

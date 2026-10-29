@@ -7,13 +7,15 @@ mod numeric_literal;
 use crate::{lang::compiler::parser::statement::Statement, logger::PolderError};
 use lexer::{Lexer, token::TokenType};
 
+pub(crate) type Span = (usize, usize);
+
 #[derive(Debug)]
 pub(crate) struct CompilerError {
     #[allow(dead_code)]
     pub(crate) kind: ErrorCode,
     pub(crate) message: String,
     pub(crate) span_message: String,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 impl From<CompilerError> for PolderError {

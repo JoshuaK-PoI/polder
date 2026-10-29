@@ -1,8 +1,7 @@
 use serde::Serialize;
 
 use crate::lang::compiler::{
-    lexer::token::{KEYWORDS, LITERALS, Token},
-    parser::{
+    Span, lexer::token::{KEYWORDS, LITERALS, Token}, parser::{
         Parser, ParserMode,
         expression::{
             BinaryExpression,
@@ -44,7 +43,7 @@ impl std::fmt::Display for Statement {
 pub(crate) struct IntrinsicStatement {
     pub(crate) intrinsic: Intrinsics,
     pub(crate) args: Vec<Expression>,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -52,7 +51,7 @@ pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: String,
     pub(crate) value_expression: Expression,
     pub(crate) is_const: bool,
-    pub(crate) declared_at: (usize, usize),
+    pub(crate) declared_at: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -80,7 +79,7 @@ pub(crate) struct ForeachStatement {
     pub(crate) element_binding: String,
     pub(crate) index_binding: Option<String>,
     pub(crate) statements: Vec<Statement>,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -438,7 +437,7 @@ impl Parser {
         Ok(result_expression)
     }
 
-    fn get_identifier(&mut self, span: (usize, usize)) -> Result<Token, CompilerError> {
+    fn get_identifier(&mut self, span: Span) -> Result<Token, CompilerError> {
         match self.peek() {
             Some(token) if token.type_ == TokenType::Identifier => Ok(self.next()),
 

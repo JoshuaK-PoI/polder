@@ -1,17 +1,14 @@
 use super::lexer::token::{Token, TokenType};
-use crate::lang::compiler::{CompilerError, ErrorCode, iter::unshift::Unshift};
+use crate::lang::compiler::{CompilerError, ErrorCode, Span, iter::unshift::Unshift};
 
-pub(crate) fn try_parse_numeric_literal(from: &String, span: (usize, usize)) -> Option<Token> {
+pub(crate) fn try_parse_numeric_literal(from: &String, span: Span) -> Option<Token> {
     match parse_numeric_literal(from, span) {
         Ok(token) => Some(token),
         Err(_) => None,
     }
 }
 
-pub(crate) fn parse_numeric_literal(
-    from: &String,
-    span: (usize, usize),
-) -> Result<Token, CompilerError> {
+pub(crate) fn parse_numeric_literal(from: &String, span: Span) -> Result<Token, CompilerError> {
     let chars = from
         .split("")
         .filter(|c| !c.is_empty())
@@ -114,7 +111,7 @@ fn check_next_part_correct_grammar(
     cur: &String,
     next: Option<&&mut String>,
     from: &String,
-    span: (usize, usize),
+    span: Span,
 ) -> Result<(), CompilerError> {
     if match cur.as_str() {
         "één" => next.is_none() || next.is_some() && (**(next.unwrap()) == "en".to_string()),

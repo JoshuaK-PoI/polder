@@ -2,9 +2,7 @@ pub(crate) mod binary;
 pub(crate) mod literal;
 
 use crate::lang::compiler::{
-    CompilerError, CompilerResult, ErrorCode,
-    lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenType},
-    parser::{
+    CompilerError, CompilerResult, ErrorCode, Span, lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenType}, parser::{
         Parser,
         expression::ExpressionType::{Binary, MethodCall, Unary},
         statement::{BinaryOp, UnaryOp},
@@ -18,7 +16,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct Expression {
     pub(crate) expression: ExpressionType,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -71,7 +69,7 @@ impl std::fmt::Display for ExpressionType {
 }
 
 impl Expression {
-    pub(crate) fn make(expression: ExpressionType, span: (usize, usize)) -> Self {
+    pub(crate) fn make(expression: ExpressionType, span: Span) -> Self {
         Expression { expression, span }
     }
 }

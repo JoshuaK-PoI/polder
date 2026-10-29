@@ -1,5 +1,7 @@
 use serde::Serialize;
 
+use crate::lang::compiler::Span;
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum TokenType {
     // Comment
@@ -253,7 +255,7 @@ impl std::fmt::Display for TokenType {
 pub(crate) struct Token {
     pub(crate) type_: TokenType,
     pub(crate) value: String,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 impl std::fmt::Display for Token {

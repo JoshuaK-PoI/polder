@@ -1,14 +1,14 @@
 use crate::{
     io::Io,
-    lang::interpreter::{
-        runtime_error::{RuntimeError, RuntimeErrorKind},
-        store::StoreValue,
+    lang::{
+        compiler::{Span, parser::expression::literal::Literal},
+        interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
     },
     runtime_error,
 };
 
 pub(super) fn print(
-    literal: Vec<StoreValue>,
+    literal: Vec<Literal>,
     add_newline: bool,
     io: &mut Io,
 ) -> Result<(), RuntimeError> {
@@ -23,7 +23,7 @@ pub(super) fn print(
     Ok(())
 }
 
-pub(super) fn readline(range: (usize, usize), io: &mut Io) -> Result<String, RuntimeError> {
+pub(super) fn readline(range: Span, io: &mut Io) -> Result<String, RuntimeError> {
     match io.read_line()? {
         Some(input) => Ok(input),
         None => Err(runtime_error!(range, RuntimeErrorKind::NoInputGiven)),

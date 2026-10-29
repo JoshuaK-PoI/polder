@@ -2,11 +2,13 @@ use ariadne::{Color, ColorGenerator, Label, Report, ReportKind, Source};
 use log::{LevelFilter, Metadata, Record};
 use serde::Serialize;
 
+use crate::lang::compiler::Span;
+
 #[derive(Debug, Serialize)]
 pub(crate) struct PolderError {
     pub(crate) message: String,
     pub(crate) span_message: String,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 pub(crate) struct ErrorLogger<'a> {

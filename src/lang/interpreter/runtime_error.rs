@@ -1,4 +1,4 @@
-use crate::logger::PolderError;
+use crate::{lang::compiler::Span, logger::PolderError};
 
 #[macro_export]
 macro_rules! runtime_error {
@@ -31,7 +31,7 @@ macro_rules! runtime_error {
 pub(crate) struct RuntimeError {
     pub(crate) message: String,
     pub(crate) span_message: String,
-    pub(crate) span: (usize, usize),
+    pub(crate) span: Span,
 }
 
 impl From<RuntimeError> for PolderError {
@@ -61,7 +61,6 @@ pub(crate) enum RuntimeErrorKind {
     NoInputGiven,
     DivideByZero,
     CannotCalculateNonNumeric,
-    CannotOperateOnArray,
     UnsupportedFunction,
     IOError,
 }
@@ -82,7 +81,6 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::CannotCalculateNonNumeric => {
                 "Rekenen kan alleen met getallen of kommagetallen".to_string()
             }
-            RuntimeErrorKind::CannotOperateOnArray => "Deze operatie is niet geldig met lijsten".to_string(),
             RuntimeErrorKind::UnsupportedFunction => "Functie (nog) niet ondersteund".to_string(),
             RuntimeErrorKind::IOError => "I/O Error".to_string(),
         }

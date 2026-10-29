@@ -1,11 +1,9 @@
-use log::debug;
-
 use crate::{
     lang::{
-        compiler::parser::expression::literal::Literal,
+        compiler::{Span, parser::expression::literal::Literal},
         interpreter::{
             runtime_error::{RuntimeError, RuntimeErrorKind},
-            store::{Store, StoreValue, Variable},
+            store::{Store, Variable},
         },
     },
     runtime_error,
@@ -14,12 +12,10 @@ use crate::{
 pub(crate) fn length(
     variable: &Variable,
     variable_identifier: &String,
-    span: (usize, usize),
-) -> Result<StoreValue, RuntimeError> {
+    span: Span,
+) -> Result<Literal, RuntimeError> {
     match variable.get_value() {
-        Some((StoreValue::Array(arr), _span)) => Ok(StoreValue::Literal(Literal::Integer(
-            arr.len().try_into().unwrap(),
-        ))),
+        Some((Literal::Vec(arr), _span)) => Ok(Literal::Integer(arr.len().try_into().unwrap())),
         Some(store_value) => {
             todo!("Implement internal function 'lengte' for {}", store_value.0)
         }
@@ -34,40 +30,40 @@ pub(crate) fn length(
 pub(super) fn push(
     variable: &Variable,
     variable_identifier: &String,
-    arguments: Vec<(StoreValue, (usize, usize))>,
-    span: (usize, usize),
-) -> Result<StoreValue, RuntimeError> {
+    arguments: Vec<(Literal, Span)>,
+    span: Span,
+) -> Result<Literal, RuntimeError> {
     match variable.get_value() {
-        Some((StoreValue::Array(arr), _)) => Ok({
+        Some((Literal::Vec(arr), _)) => Ok({
             let mut arr = arr.clone();
             for value in arguments {
                 Store::check_type_compatible(variable_identifier, variable, Some(&value))?;
-                match value {
-                    (StoreValue::Array(argument_arr), _span) => {
+                match value.0 {
+                    Literal::Vec(argument_arr) => {
                         let mut argument_arr = argument_arr.clone();
                         arr.append(&mut argument_arr)
                     }
-                    (StoreValue::Literal(lit), _span) => arr.push(lit),
+                    lit => arr.push(lit),
                 }
             }
-            StoreValue::Array(arr.to_vec())
+            Literal::Vec(arr.to_vec())
         }),
         None => {
             let mut vec: Vec<Literal> = Vec::new();
 
             for value in arguments {
-                match value {
-                    (StoreValue::Array(argument_arr), _span) => {
+                match value.0 {
+                    Literal::Vec(argument_arr) => {
                         let mut argument_arr = argument_arr.clone();
                         vec.append(&mut argument_arr)
                     }
-                    (StoreValue::Literal(lit), _span) => vec.push(lit),
+                    lit => vec.push(lit),
                 }
             }
 
-            Ok(StoreValue::Array(vec))
+            Ok(Literal::Vec(vec))
         }
-        Some((StoreValue::Literal(lit), _span)) => Err(runtime_error!(
+        Some((lit, _)) => Err(runtime_error!(
             span,
             RuntimeErrorKind::UnsupportedFunction,
             lit,
@@ -79,14 +75,12 @@ pub(super) fn push(
 pub(super) fn get(
     variable: &Variable,
     variable_identifier: &String,
-    arguments: Vec<(StoreValue, (usize, usize))>,
-    span: (usize, usize),
-) -> Result<StoreValue, RuntimeError> {
-    debug!("Get from array: {:?} {:?}", variable, arguments);
-
+    arguments: Vec<(Literal, Span)>,
+    span: Span,
+) -> Result<Literal, RuntimeError> {
     let arr = match variable.value {
         Some(ref value) => match value.0 {
-            StoreValue::Array(ref arr) => arr,
+            Literal::Vec(ref arr) => arr,
             _ => unreachable!(),
         },
         _ => unreachable!(),
@@ -94,15 +88,7 @@ pub(super) fn get(
 
     let index = match arguments.get(0) {
         Some(store_value) => match store_value.0 {
-            StoreValue::Literal(ref lit) => match lit {
-                Literal::Integer(int) => Ok(int),
-                _ => Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::InvalidArgument,
-                    variable_identifier,
-                    format!("Kan alleen indexeren met een getal")
-                )),
-            },
+            Literal::Integer(int) => Ok(int),
             _ => Err(runtime_error!(
                 span,
                 RuntimeErrorKind::InvalidArgument,
@@ -121,7 +107,7 @@ pub(super) fn get(
         )),
     }?;
 
-    if index < &0 {
+    if index < 0 {
         return Err(runtime_error!(
             span,
             RuntimeErrorKind::InvalidArgument,
@@ -133,8 +119,8 @@ pub(super) fn get(
         ));
     }
 
-    match arr.get(*index as usize) {
-        Some(value) => Ok(StoreValue::Literal(value.to_owned())),
+    match arr.get(index as usize) {
+        Some(value) => Ok(value.to_owned()),
         None => Err(runtime_error!(
             span,
             RuntimeErrorKind::VariableHasNoValue,
