@@ -2,7 +2,9 @@ pub(crate) mod binary;
 pub(crate) mod literal;
 
 use crate::lang::compiler::{
-    CompilerError, CompilerResult, ErrorCode, Span, lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, TokenType}, parser::{
+    CompilerError, CompilerResult, ErrorCode, Span,
+    lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, Token, TokenType},
+    parser::{
         Parser,
         expression::ExpressionType::{Binary, MethodCall, Unary},
         statement::{BinaryOp, UnaryOp},
@@ -11,6 +13,7 @@ use crate::lang::compiler::{
 };
 
 use literal::{Literal, literal};
+use log::debug;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -24,7 +27,7 @@ pub(crate) enum ExpressionType {
     ArrayDecl(Vec<Expression>),
     MethodCall(MethodCallExpression),
     Literal(Literal),
-    Identifier(String),
+    Identifier(Token),
     Type(PolderType),
     Binary(BinaryExpression),
     Unary(UnaryExpression),
@@ -124,6 +127,8 @@ impl Parser {
     }
 
     fn binary(&mut self) -> CompilerResult<Expression> {
+        // TODO: Now that types are not part of the expression parser anymore,
+        // it should be possible to clean up and untangle a bunch of the very specific token sequences down here
         if self.next_is_any_of(ARTICLES) {
             if self.next_nth_is_any_of(2, ARITH_EXPR) {
                 self.binary_prefix()
@@ -132,10 +137,10 @@ impl Parser {
             {
                 self.function_call()
             } else {
-                self.type_declaration()
+                self.literal()
             }
         } else {
-            let expr = self.type_declaration()?;
+            let expr = self.literal()?;
 
             if self.next_is_any_of(&[TokenType::KWPlus, TokenType::KWMin]) {
                 let op = match self.next().type_ {
@@ -189,25 +194,30 @@ impl Parser {
         })
     }
 
-    fn type_declaration(&mut self) -> CompilerResult<Expression> {
+    fn literal(&mut self) -> CompilerResult<Expression> {
         if self.next_is_any_of(LITERALS) {
+            debug!("Taking {:?}", self.peek());
             literal(self.next().clone())
-        } else if self.next_is(TokenType::Identifier) {
-            let identifier = self.next();
-            Ok(Expression {
-                expression: ExpressionType::Identifier(identifier.value.clone()),
-                span: identifier.span,
-            })
         } else {
-            let type_ = self.parse_type()?;
-            match type_.0 {
-                PolderType::Array(inner) if inner.is_none() => self.parse_array_members(),
-                _ => Ok(Expression {
-                    expression: ExpressionType::Type(type_.0),
-                    span: type_.1,
-                }),
-            }
+            self.identifier()
         }
+    }
+
+    fn identifier(&mut self) -> CompilerResult<Expression> {
+        if self.next_is(TokenType::EOF) {
+            return Err(CompilerError::new(
+                ErrorCode::NoTokensLeft,
+                format!("Verwachtte een expressie, maar vond het einde van het bestand"),
+                self.tokens.last().unwrap().span,
+            ));
+        }
+
+        let identifier = self.get_identifier()?;
+        let span = identifier.span;
+        Ok(Expression {
+            expression: ExpressionType::Identifier(identifier),
+            span,
+        })
     }
 
     fn parse_array_members(&mut self) -> CompilerResult<Expression> {
@@ -227,17 +237,17 @@ impl Parser {
             }
 
             if multipart {
-                return Err(CompilerError {
-                    kind: ErrorCode::InvalidExpression,
-                    message: format!(
+                return Err(CompilerError::new(
+                    ErrorCode::InvalidExpression,
+                    format!(
                         "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
                         self.peek().unwrap().type_
                     ),
-                    span_message: format!(
-                        "Mogelijk ben je 'en' vergeten vóór het laatste element."
-                    ),
-                    span: self.peek().unwrap().span,
-                });
+                    self.peek().unwrap().span,
+                )
+                .with_span_message(format!(
+                    "Mogelijk ben je 'en' vergeten vóór het laatste element."
+                )));
             }
 
             break;

@@ -15,12 +15,12 @@ impl Parser {
         let operator = self.expect_any_of(ARITH_EXPR)?;
 
         if !is_correct_article(&article, &operator) {
-            return Err(CompilerError {
-                kind: ErrorCode::WrongArticleForType,
-                message: format!("Lekker genederlandst"),
-                span_message: format!("Dat is geen correct Nederlands"),
-                span: article.span.clone(),
-            });
+            return Err(CompilerError::new(
+                ErrorCode::WrongArticleForType,
+                format!("Lekker genederlandst"),
+                article.span.clone(),
+            )
+            .with_span_message(format!("Dat is geen correct Nederlands")));
         }
 
         self.expect(TokenType::KWVan)?;

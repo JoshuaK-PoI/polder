@@ -2,13 +2,15 @@ use ariadne::{Color, ColorGenerator, Label, Report, ReportKind, Source};
 use log::{LevelFilter, Metadata, Record};
 use serde::Serialize;
 
-use crate::lang::compiler::Span;
+use crate::lang::compiler::{Help, Info, Span};
 
 #[derive(Debug, Serialize)]
 pub(crate) struct PolderError {
     pub(crate) message: String,
     pub(crate) span_message: String,
     pub(crate) span: Span,
+    pub(crate) help_message: Option<Help>,
+    pub(crate) infos: Vec<Info>,
 }
 
 pub(crate) struct ErrorLogger<'a> {
@@ -24,8 +26,9 @@ impl<'a> ErrorLogger<'a> {
     pub(crate) fn report<'b>(&'a self, error_detail: &'b PolderError) -> () {
         let mut colors = ColorGenerator::new();
         let color_1 = colors.next();
+        let color_2 = colors.next();
 
-        let report = Report::build(
+        let mut report = Report::build(
             ReportKind::Custom("Doe normaal!", Color::Red),
             (self.filename, error_detail.span.0..error_detail.span.1),
         )
@@ -35,6 +38,18 @@ impl<'a> ErrorLogger<'a> {
                 .with_message(&error_detail.span_message)
                 .with_color(color_1),
         );
+
+        for info in &error_detail.infos {
+            report = report.with_label(
+                Label::new((self.filename, info.span().0..info.span().1))
+                    .with_message(info.message())
+                    .with_color(color_2),
+            );
+        }
+
+        if let Some(ref help_message) = error_detail.help_message {
+            report = report.with_help(help_message);
+        }
 
         report
             .finish()

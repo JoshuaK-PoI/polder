@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Serialize;
 
 use crate::lang::compiler::{
@@ -39,14 +40,14 @@ pub(crate) struct IntrinsicStatement {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct VariableDeclarationStatement {
     pub(crate) identifier: Token,
-    pub(crate) value_expression: Expression,
+    pub(crate) type_: Option<PolderType>,
+    pub(crate) initializer: Option<Expression>,
     pub(crate) is_const: bool,
-    pub(crate) declared_at: Span,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct VariableAssignmentStatement {
-    pub(crate) identifier: String,
+    pub(crate) identifier: Token,
     pub(crate) expression: Expression,
 }
 
@@ -203,7 +204,7 @@ impl Parser {
         }
 
         self.expect(TokenType::KWVan)?;
-        let identifier = self.expect(TokenType::Identifier)?.value.clone();
+        let identifier = self.expect(TokenType::Identifier)?;
         let expression = self.expression()?;
 
         Ok(Statement::VariableAssignment(VariableAssignmentStatement {
@@ -223,12 +224,10 @@ impl Parser {
                 "Een variabele kan niet in een 'Laat dan...' blok aangemaakt worden."
             )));
         }
-        let start = self.expect(TokenType::KWLaat)?.span;
-        let identifier = self.get_identifier(start)?;
-        let span = identifier.span;
 
+        self.expect(TokenType::KWLaat)?;
+        let identifier = self.get_identifier()?;
         let is_const = self.next_is_then_unshift(TokenType::KWConst);
-        let is_indefinite_article = self.next_is(TokenType::KWArticleIndef);
 
         if self.next_is(TokenType::KWZijn) {
             return Err(CompilerError::new(
@@ -242,205 +241,168 @@ impl Parser {
             )));
         }
 
-        let expr = self.expression()?;
+        /*
+         *
+         * NEW:
+         *  Branching paths
+         *  - A type could be declared at this point with an article and the type name
+         *      - If so, check against the list of known types to determine if this is a valid type
+         *  - An expression could be declared at this point
+         *      - This is not a type in itself, in that case we have to infer the type from the expression result
+         *        which is done in the typechecker.
+         */
+        let type_ = self.try_get_type()?;
 
-        let result_expression = match expr.expression {
-            ExpressionType::Binary(_) | ExpressionType::Literal(_) => {
-                self.expect(TokenType::KWZijn)?;
-                Ok(Statement::VariableDeclaration(
-                    VariableDeclarationStatement {
+        let initializer = if !self.next_is(TokenType::KWZijn) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        debug!(
+            "type and initializers of {}: {:?}, {:?}",
+            identifier.value, type_, initializer
+        );
+        if type_.is_none() && initializer.is_none() {
+            unreachable!(
+                "In variable declaration for {}: It should not be possible to have no initializer and no type, but this was the case.",
+                identifier.value
+            );
+        }
+
+        self.expect(TokenType::KWZijn)?;
+        // TODO: Check indefinite article with a const modifier; this is probably an error
+        //   if is_indefinite_article {
+        //      if is_const {
+        //          return Err(CompilerError::new(
+        //              ErrorCode::ConstDeclarationMustHaveValue,
+        //              format!("Geen waarde toegewezen aan constante."),
+        //              identifier.span,
+        //          ));
+        //      }
+
+        let result_expression = match initializer {
+            None => Ok(Statement::VariableDeclaration(
+                VariableDeclarationStatement {
+                    identifier,
+                    type_,
+                    initializer,
+                    is_const,
+                },
+            )),
+            Some(ref expression) => match expression.expression {
+                ExpressionType::Binary(_) | ExpressionType::Literal(_) => Ok(
+                    Statement::VariableDeclaration(VariableDeclarationStatement {
                         identifier,
-                        value_expression: expr,
+                        type_,
+                        initializer,
                         is_const,
-                        declared_at: span,
-                    },
-                ))
-            }
-            ExpressionType::ArrayDecl(elements) => {
-                let expr_span_start = elements.get(0).unwrap().span.0;
-                let expr_span_end = elements.get(elements.len() - 1).unwrap().span.1;
+                    }),
+                ),
+                ExpressionType::ArrayDecl(ref elements) => {
+                    let span = (
+                        elements.first().unwrap().span.0,
+                        elements.last().unwrap().span.1,
+                    );
 
-                self.expect(TokenType::KWZijn)?;
-
-                Ok(Statement::VariableDeclaration(
-                    VariableDeclarationStatement {
-                        identifier,
-                        value_expression: Expression {
-                            expression: ArrayDecl(elements),
-                            span: (expr_span_start, expr_span_end),
-                        },
-                        is_const,
-                        declared_at: span,
-                    },
-                ))
-            }
-            ExpressionType::Type(ref type_) => {
-                if is_indefinite_article {
-                    if is_const {
-                        return Err(CompilerError::new(
-                            ErrorCode::ConstDeclarationMustHaveValue,
-                            format!("Geen waarde toegewezen aan constante."),
-                            identifier.span,
-                        ));
-                    }
-
-                    if !self.next_is(TokenType::KWZijn) {
-                        let span_end = self.next().span.1;
-                        return Err(CompilerError::new(
-                            ErrorCode::IndefiniteCannotHaveValue,
-                            format!("'een {}' kan geen waarde hebben", type_),
-                            (identifier.span.0, span_end),
-                        )
-                        .with_span_message(format!(
-                            "Gebruik '{} {}' als je een waarde opgeeft.",
-                            PolderType::article_for(&type_),
-                            type_
-                        )));
-                    }
-
-                    self.expect(TokenType::KWZijn)?;
-                    return Ok(Statement::VariableDeclaration(
-                        VariableDeclarationStatement {
-                            identifier,
-                            value_expression: expr,
-                            is_const,
-                            declared_at: span,
-                        },
-                    ));
-                }
-
-                match *type_ {
-                    _ => {
-                        let expr = self.expression()?;
-                        let expr = match expr.expression {
-                            ExpressionType::Literal(ref lit) => {
-                                if *type_ != Into::<PolderType>::into(lit) {
-                                    Err(CompilerError::new(
-                                        ErrorCode::InvalidTypeDeclaration,
-                                        format!(
-                                            "Een {} kan niet worden toegewezen aan een {}",
-                                            Into::<PolderType>::into(lit),
-                                            type_,
-                                        ),
-                                        expr.span,
-                                    )
-                                    .with_span_message(
-                                        format!(
-                                            "Ik verwachtte hier een {}, maar {} is een {}.",
-                                            type_,
-                                            identifier.value,
-                                            Into::<PolderType>::into(lit)
-                                        ),
-                                    ))
-                                } else {
-                                    Ok(expr)
-                                }
-                            }
-                            other_type => Err(CompilerError::new(
-                                ErrorCode::InvalidExpression,
-                                format!(
-                                    "Verwachtte een literal expression maar zag een {}",
-                                    other_type
-                                ),
-                                expr.span,
-                            )
-                            .with_span_message("Verwachtte een literal expression".to_string())),
-                        }?;
-
-                        self.expect(TokenType::KWZijn)?;
-                        Ok(Statement::VariableDeclaration(
-                            VariableDeclarationStatement {
-                                identifier,
-                                value_expression: expr,
-                                is_const,
-                                declared_at: span,
-                            },
-                        ))
-                    }
-                }
-            }
-            ExpressionType::MethodCall(method) => {
-                // Note:
-                // This is a bit of a hack. Because type declarations for lists and
-                // method calls on identifiers are syntactically the same,
-                // the expression parser can't distinguish the two.
-                // For a variable declaration with an indefinite article
-                // only a type is possible, so we can assume here that
-                // a type was actually meant.
-                // In the future, we should split type declaration from actual expressions
-                // because they wouldn't be valid expressions anyway.
-                self.expect(TokenType::KWZijn)?;
-
-                if method.method_name == "lijst" {
-                    if !is_indefinite_article {
-                        todo!("Implement error for empty list with definite article")
-                    }
-
-                    let inner_type =
-                        match PolderType::from_pluralized(match method.class.expression {
-                            ExpressionType::Identifier(ident) => Ok(ident),
-                            _ => Err(CompilerError::new(
-                                ErrorCode::IndefiniteCannotHaveValue,
-                                format!("Verwachtte een type hier"),
-                                method.class.span,
-                            )),
-                        }?) {
-                            Some(type_) => Ok(type_),
-                            None => Err(CompilerError::new(
-                                ErrorCode::IndefiniteCannotHaveValue,
-                                format!("Verwachtte een type hier"),
-                                method.class.span,
-                            )),
-                        }?;
-                    let span = identifier.span;
                     Ok(Statement::VariableDeclaration(
                         VariableDeclarationStatement {
                             identifier,
-                            value_expression: Expression {
-                                expression: ExpressionType::Type(PolderType::Array(Some(
-                                    Box::new(inner_type),
-                                ))),
-                                span: expr.span,
-                            },
+                            type_,
+                            initializer: Some(Expression {
+                                expression: ArrayDecl(elements.to_owned()),
+                                span,
+                            }),
                             is_const,
-                            declared_at: span,
                         },
                     ))
-                } else {
-                    Err(CompilerError::new(
-                        ErrorCode::IndefiniteCannotHaveValue,
-                        format!("Verwachtte een type hier"),
-                        expr.span,
-                    ))
                 }
-            }
-            _expression => Err(CompilerError::new(
-                ErrorCode::IndefiniteCannotHaveValue,
-                format!("Verwachtte een type hier"),
-                expr.span,
-            )),
+                ExpressionType::Type(_) => panic!(
+                    "Got a type expression for declaration of {}, this shouldn't be possible anymore with the new type system",
+                    identifier.value
+                ),
+                ExpressionType::MethodCall(ref method) => {
+                    // Note:
+                    // This is a bit of a hack. Because type declarations for lists and
+                    // method calls on identifiers are syntactically the same,
+                    // the expression parser can't distinguish the two.
+                    // For a variable declaration with an indefinite article
+                    // only a type is possible, so we can assume here that
+                    // a type was actually meant.
+                    // In the future, we should split type declaration from actual expressions
+                    // because they wouldn't be valid expressions anyway.
+
+                    if method.method_name == "lijst" {
+                        let inner_type =
+                            match PolderType::from_pluralized(&match method.class.expression {
+                                ExpressionType::Identifier(ref ident) => Ok(ident.value.clone()),
+                                _ => Err(CompilerError::new(
+                                    ErrorCode::IndefiniteCannotHaveValue,
+                                    format!("Verwachtte een type hier"),
+                                    method.class.span,
+                                )),
+                            }?) {
+                                Some(type_) => Ok(type_),
+                                None => Err(CompilerError::new(
+                                    ErrorCode::IndefiniteCannotHaveValue,
+                                    format!("Verwachtte een type hier"),
+                                    method.class.span,
+                                )),
+                            }?;
+                        Ok(Statement::VariableDeclaration(
+                            VariableDeclarationStatement {
+                                identifier,
+                                type_,
+                                initializer: Some(Expression {
+                                    expression: ExpressionType::Type(PolderType::Array(Some(
+                                        Box::new(inner_type),
+                                    ))),
+                                    span: method.class.span,
+                                }),
+                                is_const,
+                            },
+                        ))
+                    } else {
+                        //TODO: Test if these error messages can be reached; and if the span they point to makes sense
+                        Err(CompilerError::new(
+                            ErrorCode::IndefiniteCannotHaveValue,
+                            format!("Verwachtte een type hier"),
+                            method.class.span,
+                        ))
+                    }
+                }
+                ref _expression => panic!(
+                    "Invalid expression for variable declaration: {:?}",
+                    _expression
+                ),
+            },
         }?;
+
         Ok(result_expression)
     }
 
-    fn get_identifier(&mut self, span: Span) -> Result<Token, CompilerError> {
+    pub(super) fn get_identifier(&mut self) -> Result<Token, CompilerError> {
         match self.peek() {
             Some(token) if token.type_ == TokenType::Identifier => Ok(self.next()),
-
             Some(token) if KEYWORDS.contains_key(&token.value) => Err(CompilerError::new(
                 ErrorCode::InvalidIdentifier,
-                format!("'{}' is een gereserveerd woord.", token.value),
+                format!(
+                    "Verwachtte een identificatie, maar vond het gereserveerde woord '{}'",
+                    token.value
+                ),
                 token.span,
             )),
             Some(token) => Err(CompilerError::new(
                 ErrorCode::InvalidIdentifier,
-                format!("'{}' is geen geldige naam voor een variabele.", token.value),
+                format!(
+                    "Een variabelenaam moet een woord zijn, '{}' is hier niet geldig.",
+                    token.value,
+                ),
                 token.span,
             )),
             None => Err(CompilerError::new(
                 ErrorCode::NoTokensLeft,
                 format!("Geef een naam voor de variabele op."),
-                span,
+                self.get_nth(0).span,
             )),
         }
     }
@@ -506,8 +468,8 @@ impl Parser {
         }
 
         let ident = self.expect(TokenType::Identifier)?.clone();
-        let ident_expr =
-            Expression::make(ExpressionType::Identifier(ident.value.clone()), ident.span);
+        let span = ident.span;
+        let ident_expr = Expression::make(ExpressionType::Identifier(ident.clone()), span);
         Ok(self.variable_assignment_unary(start, UnaryOp::Increment, ident, ident_expr))
     }
 
@@ -518,8 +480,8 @@ impl Parser {
         }
 
         let ident = self.expect(TokenType::Identifier)?.clone();
-        let ident_expr =
-            Expression::make(ExpressionType::Identifier(ident.value.clone()), ident.span);
+        let span = ident.span;
+        let ident_expr = Expression::make(ExpressionType::Identifier(ident.clone()), span);
 
         Ok(self.variable_assignment_unary(start, UnaryOp::Decrement, ident, ident_expr))
     }
@@ -800,7 +762,7 @@ impl Parser {
     ) -> Statement {
         let span = (start.span.0, expr.span.1);
         Statement::VariableAssignment(VariableAssignmentStatement {
-            identifier: target.value,
+            identifier: target,
             expression: Expression {
                 expression: ExpressionType::Unary(UnaryExpression {
                     op,
@@ -818,14 +780,15 @@ impl Parser {
         expr: Expression,
     ) -> Statement {
         let expr_span = expr.span;
+        let lhs_span = target.span;
         Statement::VariableAssignment(VariableAssignmentStatement {
-            identifier: target.value.clone(),
+            identifier: target.clone(),
             expression: Expression {
                 expression: ExpressionType::Binary(BinaryExpression {
                     op,
                     lhs: Box::new(Expression {
-                        expression: ExpressionType::Identifier(target.value),
-                        span: target.span,
+                        expression: ExpressionType::Identifier(target),
+                        span: lhs_span,
                     }),
                     rhs: Box::new(expr),
                 }),
@@ -890,24 +853,25 @@ impl Parser {
 
                 self.expect(TokenType::KWAan)?;
                 let identifier = self.expect(TokenType::Identifier)?;
+                let identifier_span = identifier.span;
                 let end = self.expect(TokenType::KWToe)?.span.1;
 
                 Ok(Statement::VariableAssignment(VariableAssignmentStatement {
-                    identifier: identifier.value.clone(),
+                    identifier: identifier.clone(),
                     expression: Expression {
                         span: (start, end),
                         expression: ExpressionType::MethodCall(MethodCallExpression {
                             method_name: "Voeg toe".to_string(),
                             arguments,
                             class: Box::new(Expression {
-                                expression: ExpressionType::Identifier(identifier.value),
-                                span: identifier.span,
+                                expression: ExpressionType::Identifier(identifier),
+                                span: identifier_span,
                             }),
                         }),
                     },
                 }))
             }
-            _ => unimplemented!("Method statement for {}", self.peek().unwrap()),
+            _ => unimplemented!("Method statement for {:?}", self.peek().unwrap()),
         }
     }
 }

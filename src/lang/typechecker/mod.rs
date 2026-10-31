@@ -5,10 +5,11 @@ use std::collections::HashMap;
 
 use crate::lang::compiler::{
     CompilerError, CompilerResult, ErrorCode, Span,
+    lexer::token::TokenType::Identifier,
     parser::{statement::Statement, types::PolderType},
 };
 
-struct Var {
+pub(crate) struct Var {
     loc: Span,
     type_: PolderType,
     is_const: bool,
@@ -36,7 +37,7 @@ impl Typechecker {
                     format!("{} bestaat al", identifier),
                     span,
                 )
-                .with_help(var.loc, format!("{} hier gedefinieerd", identifier)))
+                .with_info(var.loc, format!("{} hier gedefinieerd", identifier)))
             } else {
                 scope.insert(
                     identifier,
@@ -53,6 +54,16 @@ impl Typechecker {
         } else {
             panic!("No scope available; should have at least one for the global level;")
         }
+    }
+
+    fn find_identifier(&self, identifier: &str) -> Option<&Var> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(var) = scope.get(identifier) {
+                return Some(var);
+            }
+        }
+
+        None
     }
 }
 
@@ -76,5 +87,25 @@ impl Typechecker {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn typecheck_against_var(
+        &self,
+        var: &Var,
+        type_r: PolderType,
+        loc_r: Span,
+    ) -> CompilerResult<()> {
+        if var.type_ != type_r {
+            Err(CompilerError::new(
+                ErrorCode::MismatchedType,
+                format!(
+                    "Een {} kan niet toegewezen worden aan een {}",
+                    type_r, var.type_
+                ),
+                loc_r,
+            ))
+        } else {
+            Ok(())
+        }
     }
 }

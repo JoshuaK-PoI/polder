@@ -166,8 +166,12 @@ impl Store {
         modified
     }
 
-    pub(crate) fn get(&self, identifier: &str) -> Option<&Variable> {
-        self.search_scopes(identifier, &self.scope).map(|s| s.0)
+    pub(crate) fn get(&self, identifier: &str) -> &Variable {
+        if let Some(var) = self.search_scopes(identifier, &self.scope).map(|s| s.0) {
+            var
+        } else {
+            panic!("Attempted to access undefined variable {}", identifier)
+        }
     }
 
     pub(crate) fn check_type_compatible(
@@ -227,7 +231,7 @@ impl Store {
             Literal::String(_) => *literal_type == PolderType::String,
             Literal::Integer(_) => *literal_type == PolderType::Integer,
             Literal::Float(_) => *literal_type == PolderType::Float,
-            Literal::Vec(_) => unreachable!("Vector types should be unpacked before typechecking")
+            Literal::Vec(_) => unreachable!("Vector types should be unpacked before typechecking"),
         } {
             Ok(())
         } else {
@@ -239,7 +243,7 @@ impl Store {
                                 range,
                                 RuntimeErrorKind::MismatchedType,
                                 format!("{}:", value),
-                                format!("{} is een {}, {} (van type {}) kan hier niet aan worden toegevoegd.", 
+                                format!("{} is een {}, {} (van type {}) kan hier niet aan worden toegevoegd.",
                                     identifier,
                                     literal_type,
                                     value,
@@ -291,10 +295,7 @@ impl Store {
         identifier: &str,
         input: String,
     ) -> Result<Literal, RuntimeError> {
-        let type_ = &self
-            .get(identifier)
-            .expect("try_marshalling_type: attempted to get undefined variable")
-            .type_;
+        let type_ = &self.get(identifier).type_;
 
         match type_ {
             PolderType::Boolean => try_bool(input),

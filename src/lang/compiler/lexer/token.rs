@@ -251,14 +251,14 @@ impl std::fmt::Display for TokenType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct Token {
     pub(crate) type_: TokenType,
     pub(crate) value: String,
     pub(crate) span: Span,
 }
 
-impl std::fmt::Display for Token {
+impl std::fmt::Debug for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

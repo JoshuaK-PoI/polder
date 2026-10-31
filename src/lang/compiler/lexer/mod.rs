@@ -40,7 +40,7 @@ impl Lexer {
         if log::max_level() >= log::LevelFilter::Trace {
             trace!("{:^16}|{:^32} @ {}", "Type", "Literal", "Position");
             trace!("{:-<1$}", "", 40);
-            tokens.iter().for_each(|token| trace!("{}", token));
+            tokens.iter().for_each(|token| trace!("{:?}", token));
         }
 
         Ok(tokens)
@@ -84,12 +84,11 @@ impl Lexer {
             }
             Some(c) if c.is_alphabetic() => self.build_identifier(start_position),
             Some(c) if c.is_ascii_digit() => self.build_number(start_position),
-            Some(c) => Err(CompilerError {
-                kind: ErrorCode::UnexpectedCharacter,
-                message: format!("Compiler doesn't know '{}'", c),
-                span_message: format!("{} is not a valid character", c),
-                span: (self.position - 1, self.position),
-            }),
+            Some(c) => Err(CompilerError::new(
+                ErrorCode::UnexpectedCharacter,
+                format!("Onverwacht karakter '{}'", c),
+                (self.position - 1, self.position),
+            )),
             None => Ok(None),
         }
     }
@@ -102,12 +101,11 @@ impl Lexer {
         let char = self.next();
 
         if char.is_none_or(|c| !expected.contains(&c)) {
-            Err(CompilerError {
-                kind: ErrorCode::UnexpectedCharacter,
-                message: error_message.to_string(),
-                span_message: error_message.to_string(),
-                span: (self.position - 1, self.position),
-            })
+            Err(CompilerError::new(
+                ErrorCode::UnexpectedCharacter,
+                error_message.to_string(),
+                (self.position - 1, self.position),
+            ))
         } else {
             Ok(char.unwrap().to_owned())
         }
@@ -199,12 +197,11 @@ impl Lexer {
     fn build_char(&mut self, start_position: usize) -> Result<Option<Token>, CompilerError> {
         self.next(); // Consume quote
         let char = match self.next() {
-            None => Err(CompilerError {
-                kind: ErrorCode::UnexpectedCharacter,
-                message: "Expected a character after single quote".to_string(),
-                span_message: "Expected a character here".to_string(),
-                span: (self.position - 1, self.position),
-            }),
+            None => Err(CompilerError::new(
+                ErrorCode::UnexpectedCharacter,
+                "Verwachtte een karakter na de '".to_string(),
+                (self.position - 1, self.position),
+            )),
             Some(ch) => Ok(ch.to_owned()),
         }?;
         self.expect_char(&['\''], "Expected a single quote (') here")?;

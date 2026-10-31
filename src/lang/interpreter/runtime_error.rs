@@ -4,7 +4,9 @@ use crate::{lang::compiler::Span, logger::PolderError};
 macro_rules! runtime_error {
     ($span: expr, $kind:expr, $message:expr, $formatter:expr) => {
         RuntimeError {
-            message: format!("{} {}", $message, String::from($kind)).trim().to_string(),
+            message: format!("{} {}", $message, String::from($kind))
+                .trim()
+                .to_string(),
             span_message: $formatter,
             span: $span,
         }
@@ -12,8 +14,12 @@ macro_rules! runtime_error {
 
     ($span: expr, $kind:expr, $message:expr) => {
         RuntimeError {
-            message: format!("{} {}", $message, String::from($kind)).trim().to_string(),
-            span_message: format!("{} {}", $message, String::from($kind)).trim().to_string(),
+            message: format!("{} {}", $message, String::from($kind))
+                .trim()
+                .to_string(),
+            span_message: format!("{} {}", $message, String::from($kind))
+                .trim()
+                .to_string(),
             span: $span,
         }
     };
@@ -40,6 +46,8 @@ impl From<RuntimeError> for PolderError {
             message: value.message,
             span_message: value.span_message,
             span: value.span,
+            help_message: None,
+            infos: Vec::new(),
         }
     }
 }
@@ -76,7 +84,9 @@ impl From<RuntimeErrorKind> for String {
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
             RuntimeErrorKind::InvalidArgument => "Ongeldig argument".to_string(),
             RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
-            RuntimeErrorKind::InvalidComparison => "Kan geen vergelijking tussen verschillende types uitvoeren".to_string(),
+            RuntimeErrorKind::InvalidComparison => {
+                "Kan geen vergelijking tussen verschillende types uitvoeren".to_string()
+            }
             RuntimeErrorKind::DivideByZero => "Kan niet door nul delen".to_string(),
             RuntimeErrorKind::CannotCalculateNonNumeric => {
                 "Rekenen kan alleen met getallen of kommagetallen".to_string()

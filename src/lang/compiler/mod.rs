@@ -12,6 +12,7 @@ use crate::{
     logger::PolderError,
 };
 use lexer::{Lexer, token::TokenType};
+use serde::Serialize;
 
 pub(crate) type Span = (usize, usize);
 
@@ -23,6 +24,7 @@ pub(crate) struct CompilerError {
     pub(crate) span_message: Option<String>,
     pub(crate) span: Span,
     pub(crate) help: Option<Help>,
+    pub(crate) infos: Vec<Info>,
 }
 
 impl CompilerError {
@@ -33,6 +35,7 @@ impl CompilerError {
             span,
             span_message: None,
             help: None,
+            infos: Vec::new(),
         }
     }
 
@@ -41,23 +44,29 @@ impl CompilerError {
         self
     }
 
-    pub(crate) fn with_help(mut self, span: Span, message: String) -> Self {
-        self.help = Some(Help { span, message });
+    pub(crate) fn with_help(mut self, message: String) -> Self {
+        self.help = Some(message);
+        self
+    }
+
+    pub(crate) fn with_info(mut self, span: Span, message: String) -> Self {
+        self.infos.push(Info { span, message });
         self
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct Help {
+#[derive(Debug, Serialize)]
+pub(crate) struct Info {
     span: Span,
     message: String,
 }
+pub(crate) type Help = String;
 
-impl Help {
-    fn span(&self) -> Span {
+impl Info {
+    pub(crate) fn span(&self) -> Span {
         self.span
     }
-    fn message(&self) -> String {
+    pub(crate) fn message(&self) -> String {
         self.message.clone()
     }
 }
@@ -68,6 +77,8 @@ impl From<CompilerError> for PolderError {
             message: value.message.clone(),
             span_message: value.span_message.unwrap_or(value.message),
             span: value.span,
+            help_message: value.help,
+            infos: value.infos,
         }
     }
 }
@@ -92,6 +103,11 @@ pub(crate) enum ErrorCode {
     InvalidThenStatement,
     InvalidStatement,
     RedefinitionOfVariable,
+    UndefinedVariable,
+    MismatchedType,
+    UninitializedVariable,
+    ConstVariable,
+    DefiniteMustHaveValue,
 }
 
 impl From<ErrorCode> for String {

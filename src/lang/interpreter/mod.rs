@@ -78,20 +78,17 @@ impl Interpreter {
         &mut self,
         declaration: &VariableDeclarationStatement,
     ) -> Result<(), RuntimeError> {
-        let (store_value, expression_type) = match &declaration.value_expression.expression {
-            ExpressionType::Type(type_) => (None, type_.to_owned()),
-            _expr => {
-                let expr_result = self.interpret_expression(&declaration.value_expression)?;
+        let (store_value, expression_type) = match &declaration.initializer {
+            Some(expr) => {
+                let expr_result = self.interpret_expression(expr)?;
                 let expression_result_type: PolderType = (&expr_result).into();
-                (
-                    Some((expr_result, declaration.value_expression.span)),
-                    expression_result_type,
-                )
+                (Some((expr_result, expr.span)), expression_result_type)
             }
+            None => todo!("Declaring variable without an initializer"),
         };
 
         let variable = Variable {
-            declared_at: declaration.declared_at,
+            declared_at: declaration.identifier.span,
             value: store_value,
             type_: expression_type,
             is_const: declaration.is_const,
@@ -100,7 +97,11 @@ impl Interpreter {
         self.store.declare(
             &declaration.identifier.value,
             variable,
-            declaration.declared_at,
+            // @Check: Is this still needed if the declaration already has a declared_at?
+            // Also, since most of the errors are bound to the typechecker now,
+            // storing the declaration location in the store is probably no longer needed
+            // in which case both the variable and this method don't need the location stored
+            declaration.identifier.span,
         )?;
         Ok(())
     }
@@ -111,7 +112,7 @@ impl Interpreter {
     ) -> Result<(), RuntimeError> {
         let literal = self.interpret_expression(&assignment.expression)?;
         self.store.write(
-            &assignment.identifier,
+            &assignment.identifier.value,
             (literal, assignment.expression.span),
             assignment.expression.span,
         )?;
@@ -124,15 +125,7 @@ impl Interpreter {
             ExpressionType::Unary(un) => self.interpret_unary_expression(un),
             ExpressionType::Binary(bin) => self.interpret_binary_expression(bin, expression.span),
             ExpressionType::Identifier(ident) => {
-                let variable = self.get_from_store(ident, expression.span)?;
-                match variable.get_value() {
-                    Some(value) => Ok(value.clone().0),
-                    None => Err(runtime_error!(
-                        expression.span,
-                        RuntimeErrorKind::VariableHasNoValue,
-                        ident
-                    )),
-                }
+                Ok(self.store.get(&ident.value).value.clone().unwrap().0)
             }
             ExpressionType::ArrayDecl(arr) => self.interpret_array(arr),
             ExpressionType::MethodCall(method) => {
@@ -288,16 +281,8 @@ impl Interpreter {
                     )),
                 }?;
 
-                if self.store.get(&identifier).is_none() {
-                    return Err(runtime_error!(
-                        span,
-                        RuntimeErrorKind::UndefinedVariable,
-                        identifier
-                    ));
-                }
-
                 let value = intrinsic::readline(span, io)?;
-                self.store.write_input(identifier, value, span)?;
+                self.store.write_input(identifier.value, value, span)?;
                 Ok(())
             }
         }
@@ -317,8 +302,8 @@ impl Interpreter {
                 }
 
                 methods::call_method(
-                    self.get_from_store(identifier, span)?,
-                    identifier,
+                    self.store.get(&identifier.value),
+                    &identifier.value,
                     &method_call_expression.method_name,
                     arguments,
                     span,
@@ -406,21 +391,6 @@ impl Interpreter {
         }
     }
 
-    fn get_from_store(
-        &self,
-        variable_identifier: &String,
-        span: Span,
-    ) -> Result<&Variable, RuntimeError> {
-        match self.store.get(variable_identifier) {
-            Some(variable) => Ok(variable),
-            None => Err(runtime_error!(
-                span,
-                RuntimeErrorKind::UndefinedVariable,
-                variable_identifier
-            )),
-        }
-    }
-
     fn check_numeric(&self, store_value: &Literal, expr: &Expression) -> Result<(), RuntimeError> {
         if [PolderType::Integer, PolderType::Float].contains(&(store_value).into()) {
             Ok(())
@@ -439,15 +409,7 @@ impl Interpreter {
         foreach_statement: &ForeachStatement,
         io: &mut Io<'_>,
     ) -> Result<(), RuntimeError> {
-        let variable = match self.store.get(foreach_statement.list_name.as_str()) {
-            Some(var) => Ok(var),
-            None => Err(runtime_error!(
-                foreach_statement.span,
-                RuntimeErrorKind::UndefinedVariable,
-                foreach_statement.list_name
-            )),
-        }?
-        .clone();
+        let variable = self.store.get(foreach_statement.list_name.as_str()).clone();
 
         match variable.type_ {
             PolderType::Array(_) => {

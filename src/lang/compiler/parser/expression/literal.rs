@@ -199,16 +199,17 @@ pub(crate) fn literal(token: Token) -> CompilerResult<Expression> {
     let span = token.span;
     Ok(Expression {
         expression: match token.type_ {
-            TokenType::Identifier => ExpressionType::Identifier(token.value.clone()),
+            TokenType::Identifier => ExpressionType::Identifier(token),
             TokenType::StringLiteral => {
                 ExpressionType::Literal(Literal::String(token.value.replace(&['„', '”', '"'], "")))
             }
             TokenType::IntegerLiteral => ExpressionType::Literal(Literal::Integer(
-                token.value.parse::<i64>().map_err(|err| CompilerError {
-                    kind: ErrorCode::ParseIntError,
-                    message: format!("Could not parse value to int: {}", err),
-                    span_message: format!("Cannot parse this to int"),
-                    span,
+                token.value.parse::<i64>().map_err(|err| {
+                    CompilerError::new(
+                        ErrorCode::ParseIntError,
+                        format!("Could not parse value to int: {}", err),
+                        span,
+                    )
                 })?,
             )),
             TokenType::FloatLiteral => ExpressionType::Literal(Literal::Float(
@@ -216,30 +217,31 @@ pub(crate) fn literal(token: Token) -> CompilerResult<Expression> {
                     .value
                     .replace(',', ".")
                     .parse::<f64>()
-                    .map_err(|err| CompilerError {
-                        kind: ErrorCode::ParseIntError,
-                        message: format!("Could not parse value to float: {}", err),
-                        span_message: format!("Cannot parse this to float"),
-                        span,
+                    .map_err(|err| {
+                        CompilerError::new(
+                            ErrorCode::ParseIntError,
+                            format!("Could not parse value to float: {}", err),
+                            span,
+                        )
                     })?,
             )),
             TokenType::TrueLiteral | TokenType::FalseLiteral => {
                 ExpressionType::Literal(Literal::Boolean(token.type_ == TokenType::TrueLiteral))
             }
             TokenType::CharLiteral => ExpressionType::Literal(Literal::Char(
-                token.value.parse::<char>().map_err(|err| CompilerError {
-                    kind: ErrorCode::ParseIntError,
-                    message: format!("Could not parse value to char: {}", err),
-                    span_message: format!("Cannot parse this to char"),
-                    span,
+                token.value.parse::<char>().map_err(|err| {
+                    CompilerError::new(
+                        ErrorCode::ParseIntError,
+                        format!("Could not parse value to char: {}", err),
+                        span,
+                    )
                 })?,
             )),
-            type_ => Err(CompilerError {
-                kind: ErrorCode::InvalidExpression,
-                message: format!("Invalid expression: did not expect token of type {}", type_),
-                span_message: String::from(""),
+            type_ => Err(CompilerError::new(
+                ErrorCode::InvalidExpression,
+                format!("Invalid expression: did not expect token of type {}", type_),
                 span,
-            })?,
+            ))?,
         },
         span,
     })
