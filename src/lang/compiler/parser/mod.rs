@@ -77,12 +77,12 @@ impl Parser {
     fn expect(&mut self, token_type: TokenType) -> CompilerResult<Token> {
         match self.tokens.get(self.position) {
             Some(token) if token.type_ == token_type => Ok(self.next()),
-            Some(token) => Err(CompilerError {
-                kind: ErrorCode::UnshiftedUnexpectedToken,
-                message: format!("Onverwacht: '{}'", token.value),
-                span_message: format!("Hier verwachtte ik '{}'.", token_type),
-                span: token.span,
-            }),
+            Some(token) => Err(CompilerError::new(
+                ErrorCode::UnshiftedUnexpectedToken,
+                format!("Onverwacht: '{}'", token.value),
+                token.span,
+            )
+            .with_span_message(format!("Hier verwachtte ik '{}'.", token_type))),
             None => unreachable!(),
         }
     }
@@ -90,12 +90,11 @@ impl Parser {
     fn expect_any_of(&mut self, token_types: &[TokenType]) -> CompilerResult<Token> {
         match self.tokens.get(self.position) {
             Some(token) if token_types.contains(&token.type_) => Ok(self.next()),
-            Some(token) => Err(CompilerError {
-                kind: crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
-                message: format!("Expected one of: {:?}, got {}", token_types, token.value),
-                span_message: format!("Expected one of: {:?}, got {}", token_types, token.value),
-                span: self.peek().unwrap().span,
-            }),
+            Some(token) => Err(CompilerError::new(
+                crate::lang::compiler::ErrorCode::UnshiftedUnexpectedToken,
+                format!("Expected one of: {:?}, got {}", token_types, token.value),
+                self.peek().unwrap().span,
+            )),
             None => unreachable!(),
         }
     }

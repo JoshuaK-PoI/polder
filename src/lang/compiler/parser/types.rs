@@ -100,12 +100,11 @@ impl Parser {
         match typedecl.value.as_str() {
             "getal" | "kommagetal" => {
                 if ![TokenType::KWArticleDefH, TokenType::KWArticleIndef].contains(&article_type) {
-                    Err(CompilerError {
-                        kind: ErrorCode::WrongArticleForType,
-                        message: format!("Lekker genederlandst"),
-                        span_message: format!("Dat is geen correct Nederlands"),
-                        span: article_span,
-                    })
+                    Err(CompilerError::new(
+                        ErrorCode::WrongArticleForType,
+                        format!("Lekker genederlandst"),
+                        article_span,
+                    ))
                 } else {
                     Ok((
                         PolderType::from(typedecl.value.clone()),
@@ -115,12 +114,11 @@ impl Parser {
             }
             "waarheid" | "tekst" | "letter" => {
                 if ![TokenType::KWArticleDefD, TokenType::KWArticleIndef].contains(&article_type) {
-                    Err(CompilerError {
-                        kind: ErrorCode::WrongArticleForType,
-                        message: format!("Lekker genederlandst"),
-                        span_message: format!("Dat is geen correct Nederlands"),
-                        span: article_span,
-                    })
+                    Err(CompilerError::new(
+                        ErrorCode::WrongArticleForType,
+                        format!("Lekker genederlandst"),
+                        article_span,
+                    ))
                 } else {
                     Ok((
                         PolderType::from(typedecl.value.clone()),
@@ -130,29 +128,24 @@ impl Parser {
             }
             "lijst" => {
                 if ![TokenType::KWArticleDefD, TokenType::KWArticleIndef].contains(&article_type) {
-                    Err(CompilerError {
-                        kind: ErrorCode::WrongArticleForType,
-                        message: format!("Lekker genederlandst"),
-                        span_message: format!("Dat is geen correct Nederlands"),
-                        span: article_span,
-                    })
+                    Err(CompilerError::new(
+                        ErrorCode::WrongArticleForType,
+                        format!("Lekker genederlandst"),
+                        article_span,
+                    ))
                 } else {
                     self.parse_array_type((article_span.0, typedecl.span.1))
                 }
             }
-            _ => Err(CompilerError {
-                kind: ErrorCode::InvalidTypeDeclaration,
-                message: format!("'{}' is geen type", typedecl.value),
-                span: typedecl.span,
-                span_message: format!("'{}' is geen bekend type ", typedecl.value),
-            }),
+            _ => Err(CompilerError::new(
+                ErrorCode::InvalidTypeDeclaration,
+                format!("'{}' is geen bekend type", typedecl.value),
+                typedecl.span,
+            )),
         }
     }
 
-    fn parse_array_type(
-        &mut self,
-        span: Span,
-    ) -> CompilerResult<(PolderType, Span)> {
+    fn parse_array_type(&mut self, span: Span) -> CompilerResult<(PolderType, Span)> {
         self.expect(TokenType::KWVan)?;
 
         if self.next_is(TokenType::Identifier) {
@@ -160,12 +153,11 @@ impl Parser {
             if let Some(inner_type) = PolderType::from_pluralized(inner_type.value.clone()) {
                 Ok((PolderType::Array(Some(Box::new(inner_type))), span))
             } else {
-                Err(CompilerError {
-                    kind: ErrorCode::InvalidTypeDeclaration,
-                    message: format!("'{}' is geen type", inner_type.value),
-                    span: inner_type.span,
-                    span_message: format!("'{}' is geen bekend type ", inner_type.value),
-                })
+                Err(CompilerError::new(
+                    ErrorCode::InvalidTypeDeclaration,
+                    format!("'{}' is geen bekend type", inner_type.value),
+                    inner_type.span,
+                ))
             }
         } else {
             Ok((PolderType::Array(None), span))

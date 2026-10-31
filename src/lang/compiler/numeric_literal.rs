@@ -29,12 +29,11 @@ pub(crate) fn parse_numeric_literal(from: &String, span: Span) -> Result<Token, 
     // If at the end we still have characters in the buffer,
     // something couldn't be matched and the number is likely invalid
     if tmp.len() > 0 {
-        return Err(CompilerError {
-            kind: ErrorCode::InvalidNumericLiteral,
-            message: format!("Invalid numeric literal {}", from),
-            span_message: format!("Invalid numeric literal"),
+        return Err(CompilerError::new(
+            ErrorCode::InvalidNumericLiteral,
+            format!("Invalid numeric literal {}", from),
             span,
-        });
+        ));
     }
 
     let mut acc: usize = 0;
@@ -52,12 +51,11 @@ pub(crate) fn parse_numeric_literal(from: &String, span: Span) -> Result<Token, 
                     if acc > 999 {
                         // We have already multiplied the number by 1000 before,
                         // so it should not be possible to have "duizend" in the number again
-                        return Err(CompilerError {
-                            kind: ErrorCode::InvalidNumericLiteral,
-                            message: format!("Invalid numeric literal {}", from),
-                            span_message: format!("Invalid numeric literal"),
+                        return Err(CompilerError::new(
+                            ErrorCode::InvalidNumericLiteral,
+                            format!("Invalid numeric literal {}", from),
                             span,
-                        });
+                        ));
                     }
                     if acc == 0 {
                         acc = 1;
@@ -88,15 +86,15 @@ pub(crate) fn parse_numeric_literal(from: &String, span: Span) -> Result<Token, 
                 Ok(())
             }
 
-            c => Err(CompilerError {
-                kind: ErrorCode::InvalidNumericLiteral,
-                message: format!("Invalid numeric literal {}", from),
-                span_message: format!(
-                    "Invalid numeric literal: {} Not registered as number token fragment",
-                    c
-                ),
+            c => Err(CompilerError::new(
+                ErrorCode::InvalidNumericLiteral,
+                format!("Invalid numeric literal {}", from),
                 span,
-            }),
+            )
+            .with_span_message(format!(
+                "Invalid numeric literal: {} Not registered as number token fragment",
+                c
+            ))),
         }?;
     }
 
@@ -186,12 +184,12 @@ fn check_next_part_correct_grammar(
     } {
         Ok(())
     } else {
-        Err(CompilerError {
-            kind: ErrorCode::InvalidNumericLiteral,
-            message: format!("Invalid numeric literal {}", cur),
-            span_message: format!("Invalid numeric literal '{}' in {}", from, cur),
+        Err(CompilerError::new(
+            ErrorCode::InvalidNumericLiteral,
+            format!("Invalid numeric literal {}", cur),
             span,
-        })
+        )
+        .with_span_message(format!("Invalid numeric literal '{}' in {}", from, cur)))
     }
 }
 

@@ -97,8 +97,11 @@ impl Interpreter {
             is_const: declaration.is_const,
         };
 
-        self.store
-            .declare(&declaration.identifier, variable, declaration.declared_at)?;
+        self.store.declare(
+            &declaration.identifier.value,
+            variable,
+            declaration.declared_at,
+        )?;
         Ok(())
     }
 

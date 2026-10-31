@@ -38,7 +38,7 @@ pub(crate) struct IntrinsicStatement {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct VariableDeclarationStatement {
-    pub(crate) identifier: String,
+    pub(crate) identifier: Token,
     pub(crate) value_expression: Expression,
     pub(crate) is_const: bool,
     pub(crate) declared_at: Span,
@@ -105,12 +105,11 @@ pub(crate) enum UnaryOp {
 impl Parser {
     pub(crate) fn stmt(&mut self) -> CompilerResult<Statement> {
         if self.peek().is_none() {
-            return Err(CompilerError {
-                kind: ErrorCode::NoTokensLeft,
-                message: format!("Expected start of statement"),
-                span_message: String::from(""),
-                span: self.get_nth(0).span,
-            });
+            return Err(CompilerError::new(
+                ErrorCode::NoTokensLeft,
+                format!("Expected start of statement"),
+                self.get_nth(0).span,
+            ));
         }
 
         let stmt = match self.peek().unwrap().type_ {
@@ -138,16 +137,16 @@ impl Parser {
                 self.expect(TokenType::KWIs)?;
                 let end = self.expect(TokenType::KWKees)?;
 
-                Err(CompilerError {
-                    kind: ErrorCode::InvalidStatement,
-                    message: format!("Kees was nog niet eens begonnen"),
-                    span_message: format!("Er is hier geen blok om af te sluiten."),
-                    span: (start, end.span.1),
-                })
+                Err(CompilerError::new(
+                    ErrorCode::InvalidStatement,
+                    format!("Kees was nog niet eens begonnen"),
+                    (start, end.span.1),
+                )
+                .with_span_message(format!("Er is hier geen blok om af te sluiten.")))
             }
-            TokenType::KWZo | TokenType::KWAnders => Err(CompilerError {
-                kind: ErrorCode::InvalidStatement,
-                message: format!(
+            TokenType::KWZo | TokenType::KWAnders => Err(CompilerError::new(
+                ErrorCode::InvalidStatement,
+                format!(
                     "'{}' hoort bij een 'Als'",
                     if self.peek().unwrap().type_ == TokenType::KWZo {
                         format!("Zo niet")
@@ -155,27 +154,28 @@ impl Parser {
                         format!("Anders")
                     }
                 ),
-                span_message: format!(
-                    "Er staat geen 'Als' vóór '{}'",
-                    if self.peek().unwrap().type_ == TokenType::KWZo {
-                        format!("Zo niet")
-                    } else {
-                        format!("Anders")
-                    }
-                ),
-                span: self.peek().unwrap().span,
-            }),
+                self.peek().unwrap().span,
+            )
+            .with_span_message(format!(
+                "Er staat geen 'Als' vóór '{}'",
+                if self.peek().unwrap().type_ == TokenType::KWZo {
+                    format!("Zo niet")
+                } else {
+                    format!("Anders")
+                }
+            ))),
             _ => todo!("parse < {} >", self.peek().unwrap().type_),
         }?;
 
         if self.mode != ParserMode::InThenStatement && stmt != Statement::Comment {
-            self.expect(TokenType::FullStop)
-                .map_err(|_| CompilerError {
-                    kind: ErrorCode::StatementNotTerminated,
-                    message: format!("Een zin eindigt met een punt."),
-                    span_message: format!("Deze zin is niet beëindigd."),
-                    span: self.get_nth(0).span,
-                })?;
+            self.expect(TokenType::FullStop).map_err(|_| {
+                CompilerError::new(
+                    ErrorCode::StatementNotTerminated,
+                    format!("Een zin eindigt met een punt."),
+                    self.get_nth(0).span,
+                )
+                .with_span_message(format!("Deze zin is niet beëindigd."))
+            })?;
         }
 
         Ok(stmt)
@@ -214,31 +214,32 @@ impl Parser {
 
     pub fn variable_declaration(&mut self) -> CompilerResult<Statement> {
         if self.mode == ParserMode::InThenStatement {
-            return Err(CompilerError {
-                kind: ErrorCode::InvalidThenStatement,
-                message: format!("Hier kan geen variabele gemaakt worden"),
-                span_message: format!(
-                    "Een variabele kan niet in een 'Laat dan...' blok aangemaakt worden."
-                ),
-                span: self.next().span,
-            });
+            return Err(CompilerError::new(
+                ErrorCode::InvalidThenStatement,
+                format!("Hier kan geen variabele gemaakt worden"),
+                self.next().span,
+            )
+            .with_span_message(format!(
+                "Een variabele kan niet in een 'Laat dan...' blok aangemaakt worden."
+            )));
         }
         let start = self.expect(TokenType::KWLaat)?.span;
         let identifier = self.get_identifier(start)?;
+        let span = identifier.span;
 
         let is_const = self.next_is_then_unshift(TokenType::KWConst);
         let is_indefinite_article = self.next_is(TokenType::KWArticleIndef);
 
         if self.next_is(TokenType::KWZijn) {
-            return Err(CompilerError {
-                kind: ErrorCode::CannotInferVariableType,
-                message: format!("Wat is {} dan?", identifier.value),
-                span_message: format!(
-                    "Je moet een type of een waarde toewijzen aan {}",
-                    identifier.value
-                ),
-                span: identifier.span,
-            });
+            return Err(CompilerError::new(
+                ErrorCode::CannotInferVariableType,
+                format!("Wat is {} dan?", identifier.value),
+                identifier.span,
+            )
+            .with_span_message(format!(
+                "Je moet een type of een waarde toewijzen aan {}",
+                identifier.value
+            )));
         }
 
         let expr = self.expression()?;
@@ -248,10 +249,10 @@ impl Parser {
                 self.expect(TokenType::KWZijn)?;
                 Ok(Statement::VariableDeclaration(
                     VariableDeclarationStatement {
-                        identifier: identifier.value,
+                        identifier,
                         value_expression: expr,
                         is_const,
-                        declared_at: identifier.span,
+                        declared_at: span,
                     },
                 ))
             }
@@ -263,50 +264,47 @@ impl Parser {
 
                 Ok(Statement::VariableDeclaration(
                     VariableDeclarationStatement {
-                        identifier: identifier.value,
+                        identifier,
                         value_expression: Expression {
                             expression: ArrayDecl(elements),
                             span: (expr_span_start, expr_span_end),
                         },
                         is_const,
-                        declared_at: identifier.span,
+                        declared_at: span,
                     },
                 ))
             }
             ExpressionType::Type(ref type_) => {
                 if is_indefinite_article {
                     if is_const {
-                        return Err(CompilerError {
-                            kind: ErrorCode::ConstDeclarationMustHaveValue,
-                            message: format!("Geen waarde toegewezen aan constante."),
-                            span_message: format!(
-                                "Een constante variabele heeft een waarde nodig."
-                            ),
-                            span: identifier.span,
-                        });
+                        return Err(CompilerError::new(
+                            ErrorCode::ConstDeclarationMustHaveValue,
+                            format!("Geen waarde toegewezen aan constante."),
+                            identifier.span,
+                        ));
                     }
 
                     if !self.next_is(TokenType::KWZijn) {
                         let span_end = self.next().span.1;
-                        return Err(CompilerError {
-                            kind: ErrorCode::IndefiniteCannotHaveValue,
-                            message: format!("'een {}' kan geen waarde hebben", type_),
-                            span_message: format!(
-                                "Gebruik '{} {}' als je een waarde opgeeft.",
-                                PolderType::article_for(&type_),
-                                type_
-                            ),
-                            span: (identifier.span.0, span_end),
-                        });
+                        return Err(CompilerError::new(
+                            ErrorCode::IndefiniteCannotHaveValue,
+                            format!("'een {}' kan geen waarde hebben", type_),
+                            (identifier.span.0, span_end),
+                        )
+                        .with_span_message(format!(
+                            "Gebruik '{} {}' als je een waarde opgeeft.",
+                            PolderType::article_for(&type_),
+                            type_
+                        )));
                     }
 
                     self.expect(TokenType::KWZijn)?;
                     return Ok(Statement::VariableDeclaration(
                         VariableDeclarationStatement {
-                            identifier: identifier.value,
+                            identifier,
                             value_expression: expr,
                             is_const,
-                            declared_at: identifier.span,
+                            declared_at: span,
                         },
                     ));
                 }
@@ -317,43 +315,45 @@ impl Parser {
                         let expr = match expr.expression {
                             ExpressionType::Literal(ref lit) => {
                                 if *type_ != Into::<PolderType>::into(lit) {
-                                    Err(CompilerError {
-                                        kind: ErrorCode::InvalidTypeDeclaration,
-                                        message: format!(
+                                    Err(CompilerError::new(
+                                        ErrorCode::InvalidTypeDeclaration,
+                                        format!(
                                             "Een {} kan niet worden toegewezen aan een {}",
                                             Into::<PolderType>::into(lit),
                                             type_,
                                         ),
-                                        span_message: format!(
+                                        expr.span,
+                                    )
+                                    .with_span_message(
+                                        format!(
                                             "Ik verwachtte hier een {}, maar {} is een {}.",
                                             type_,
                                             identifier.value,
                                             Into::<PolderType>::into(lit)
                                         ),
-                                        span: expr.span,
-                                    })
+                                    ))
                                 } else {
                                     Ok(expr)
                                 }
                             }
-                            other_type => Err(CompilerError {
-                                kind: ErrorCode::InvalidExpression,
-                                message: format!(
+                            other_type => Err(CompilerError::new(
+                                ErrorCode::InvalidExpression,
+                                format!(
                                     "Verwachtte een literal expression maar zag een {}",
                                     other_type
                                 ),
-                                span_message: "Verwachtte een literal expression".to_string(),
-                                span: expr.span,
-                            }),
+                                expr.span,
+                            )
+                            .with_span_message("Verwachtte een literal expression".to_string())),
                         }?;
 
                         self.expect(TokenType::KWZijn)?;
                         Ok(Statement::VariableDeclaration(
                             VariableDeclarationStatement {
-                                identifier: identifier.value,
+                                identifier,
                                 value_expression: expr,
                                 is_const,
-                                declared_at: identifier.span,
+                                declared_at: span,
                             },
                         ))
                     }
@@ -379,25 +379,23 @@ impl Parser {
                     let inner_type =
                         match PolderType::from_pluralized(match method.class.expression {
                             ExpressionType::Identifier(ident) => Ok(ident),
-                            _ => Err(CompilerError {
-                                kind: ErrorCode::IndefiniteCannotHaveValue,
-                                message: format!("Verwachtte een type hier"),
-                                span_message: format!("Verwachtte een type hier"),
-                                span: method.class.span,
-                            }),
+                            _ => Err(CompilerError::new(
+                                ErrorCode::IndefiniteCannotHaveValue,
+                                format!("Verwachtte een type hier"),
+                                method.class.span,
+                            )),
                         }?) {
                             Some(type_) => Ok(type_),
-                            None => Err(CompilerError {
-                                kind: ErrorCode::IndefiniteCannotHaveValue,
-                                message: format!("Verwachtte een type hier"),
-                                span_message: format!("Verwachtte een type hier"),
-                                span: method.class.span,
-                            }),
+                            None => Err(CompilerError::new(
+                                ErrorCode::IndefiniteCannotHaveValue,
+                                format!("Verwachtte een type hier"),
+                                method.class.span,
+                            )),
                         }?;
-
+                    let span = identifier.span;
                     Ok(Statement::VariableDeclaration(
                         VariableDeclarationStatement {
-                            identifier: identifier.value,
+                            identifier,
                             value_expression: Expression {
                                 expression: ExpressionType::Type(PolderType::Array(Some(
                                     Box::new(inner_type),
@@ -405,24 +403,22 @@ impl Parser {
                                 span: expr.span,
                             },
                             is_const,
-                            declared_at: identifier.span,
+                            declared_at: span,
                         },
                     ))
                 } else {
-                    Err(CompilerError {
-                        kind: ErrorCode::IndefiniteCannotHaveValue,
-                        message: format!("Verwachtte een type hier"),
-                        span_message: format!("Verwachtte een type hier"),
-                        span: expr.span,
-                    })
+                    Err(CompilerError::new(
+                        ErrorCode::IndefiniteCannotHaveValue,
+                        format!("Verwachtte een type hier"),
+                        expr.span,
+                    ))
                 }
             }
-            _expression => Err(CompilerError {
-                kind: ErrorCode::IndefiniteCannotHaveValue,
-                message: format!("Verwachtte een type hier"),
-                span_message: format!("Verwachtte een type hier"),
-                span: expr.span,
-            }),
+            _expression => Err(CompilerError::new(
+                ErrorCode::IndefiniteCannotHaveValue,
+                format!("Verwachtte een type hier"),
+                expr.span,
+            )),
         }?;
         Ok(result_expression)
     }
@@ -431,24 +427,21 @@ impl Parser {
         match self.peek() {
             Some(token) if token.type_ == TokenType::Identifier => Ok(self.next()),
 
-            Some(token) if KEYWORDS.contains_key(&token.value) => Err(CompilerError {
-                kind: ErrorCode::InvalidIdentifier,
-                message: format!("'{}' is een gereserveerd woord.", token.value),
-                span_message: format!("'{}' is een gereserveerd woord.", token.value),
-                span: token.span,
-            }),
-            Some(token) => Err(CompilerError {
-                kind: ErrorCode::InvalidIdentifier,
-                message: format!("Verwacht hier de naam voor de variabele."),
-                span_message: format!("'{}' is geen geldige naam voor een variabele.", token.value),
-                span: token.span,
-            }),
-            None => Err(CompilerError {
-                kind: ErrorCode::NoTokensLeft,
-                message: format!("Naam van de variabele mist"),
-                span_message: format!("Geef een naam voor de variabele op."),
+            Some(token) if KEYWORDS.contains_key(&token.value) => Err(CompilerError::new(
+                ErrorCode::InvalidIdentifier,
+                format!("'{}' is een gereserveerd woord.", token.value),
+                token.span,
+            )),
+            Some(token) => Err(CompilerError::new(
+                ErrorCode::InvalidIdentifier,
+                format!("'{}' is geen geldige naam voor een variabele.", token.value),
+                token.span,
+            )),
+            None => Err(CompilerError::new(
+                ErrorCode::NoTokensLeft,
+                format!("Geef een naam voor de variabele op."),
                 span,
-            }),
+            )),
         }
     }
 
@@ -533,14 +526,11 @@ impl Parser {
 
     fn if_statement(&mut self) -> CompilerResult<Statement> {
         if self.mode == ParserMode::InThenStatement {
-            return Err(CompilerError {
-                kind: ErrorCode::InvalidThenStatement,
-                message: format!("Hier kan niet nogmaals een 'Als' voorkomen"),
-                span_message: format!(
-                    "Een 'als' kan niet het resultaat van een andere 'als' zijn."
-                ),
-                span: self.next().span,
-            });
+            return Err(CompilerError::new(
+                ErrorCode::InvalidThenStatement,
+                format!("Hier kan niet nogmaals een 'Als' voorkomen"),
+                self.next().span,
+            ));
         }
 
         let start = self.expect(TokenType::KWAls)?.clone();
@@ -556,11 +546,10 @@ impl Parser {
 
         let expect_block = self.next_is_then_unshift(TokenType::Colon);
         if !expect_block {
-            self.expect(TokenType::Comma).map_err(|err| CompilerError {
-                kind: err.kind,
-                message: err.message,
-                span_message: format!("Verwachtte een literal, komma of dubbele punt hier."),
-                span: err.span,
+            self.expect(TokenType::Comma).map_err(|err| {
+                err.with_span_message(format!(
+                    "Verwachtte een literal, komma of dubbele punt hier."
+                ))
             })?;
         }
 
@@ -619,12 +608,14 @@ impl Parser {
 
         if expect_block {
             if self.next_is(TokenType::KWZo) && self.next_nth_is_any_of(2, &[TokenType::KWNiet]) {
-                return Err(CompilerError {
-                    kind: ErrorCode::InvalidStatement,
-                    message: format!("'Zo niet' hoort bij een korte als-zin"),
-                    span_message: format!("Gebruik hier 'Anders:' om het blok voort te zetten."),
-                    span: (self.next().span.0, self.get_nth(1).span.1),
-                });
+                return Err(CompilerError::new(
+                    ErrorCode::InvalidStatement,
+                    format!("'Zo niet' hoort bij een korte als-zin"),
+                    (self.next().span.0, self.get_nth(1).span.1),
+                )
+                .with_span_message(format!(
+                    "Gebruik hier 'Anders:' om het blok voort te zetten."
+                )));
             }
 
             if self.next_is_then_unshift(TokenType::KWKlaar) {
@@ -642,12 +633,11 @@ impl Parser {
                     {
                         else_statements.push(self.stmt()?);
                         if self.next_is(TokenType::KWAnders) {
-                            return Err(CompilerError {
-                                kind: ErrorCode::InvalidStatement,
-                                message: format!("Er is al een 'Anders'"),
-                                span_message: format!("Dit als-blok heeft al een 'Anders'."),
-                                span: self.next().span,
-                            });
+                            return Err(CompilerError::new(
+                                ErrorCode::InvalidStatement,
+                                format!("Dit als-blok heeft al een 'Anders'."),
+                                self.next().span,
+                            ));
                         }
                     }
 
@@ -656,25 +646,27 @@ impl Parser {
                     self.expect(TokenType::KWKees)?;
                 }
             } else {
-                return Err(CompilerError {
-                    kind: ErrorCode::InvalidStatement,
-                    message: format!("Kees is nog niet klaar"),
-                    span_message: format!("Dit blok wordt nergens afgesloten met 'Klaar is Kees.'"),
-                    span: (start.span.0, check_expression.span.1),
-                });
+                return Err(CompilerError::new(
+                    ErrorCode::InvalidStatement,
+                    format!("Kees is nog niet klaar"),
+                    (start.span.0, check_expression.span.1),
+                )
+                .with_span_message(format!(
+                    "Dit blok wordt nergens afgesloten met 'Klaar is Kees.'"
+                )));
             }
         } else {
             if self.next_is(TokenType::FullStop)
                 && self.next_nth_is_any_of(2, &[TokenType::KWAnders])
             {
-                return Err(CompilerError {
-                    kind: ErrorCode::InvalidStatement,
-                    message: format!("Anders wát?"),
-                    span_message: format!(
-                        "'Anders' hoort bij een blok. Gebruik 'Zo niet,' na een korte als-zin."
-                    ),
-                    span: self.get_nth(2).span,
-                });
+                return Err(CompilerError::new(
+                    ErrorCode::InvalidStatement,
+                    format!("Anders wát?"),
+                    self.get_nth(2).span,
+                )
+                .with_span_message(format!(
+                    "'Anders' hoort bij een blok. Gebruik 'Zo niet,' na een korte als-zin."
+                )));
             }
 
             if self.next_is(TokenType::FullStop) && self.next_nth_is_any_of(2, &[TokenType::KWZo]) {
@@ -698,12 +690,14 @@ impl Parser {
 
     fn while_statement(&mut self) -> CompilerResult<Statement> {
         if self.mode == ParserMode::InThenStatement {
-            return Err(CompilerError {
-                kind: ErrorCode::InvalidThenStatement,
-                message: format!("Hier kan geen 'Zolang' voorkomen"),
-                span_message: format!("Een 'zolang' kan niet het resultaat van een 'als' zijn."),
-                span: self.next().span,
-            });
+            return Err(CompilerError::new(
+                ErrorCode::InvalidThenStatement,
+                format!("Hier kan geen 'Zolang' voorkomen"),
+                self.next().span,
+            )
+            .with_span_message(format!(
+                "Een 'zolang' kan niet het resultaat van een 'als' zijn."
+            )));
         }
 
         let start = self.expect(TokenType::KWZolang)?;
@@ -724,12 +718,14 @@ impl Parser {
         self.check_block_empty(&then_statements, &start, &predicate)?;
 
         if self.peek().is_none() {
-            return Err(CompilerError {
-                kind: ErrorCode::InvalidStatement,
-                message: format!("Kees is nog niet klaar"),
-                span_message: format!("Dit blok wordt nergens afgesloten met 'Klaar is Kees.'"),
-                span: (start.span.0, predicate.span.1),
-            });
+            return Err(CompilerError::new(
+                ErrorCode::InvalidStatement,
+                format!("Kees is nog niet klaar"),
+                (start.span.0, predicate.span.1),
+            )
+            .with_span_message(format!(
+                "Dit blok wordt nergens afgesloten met 'Klaar is Kees.'"
+            )));
         }
         self.expect(TokenType::KWKlaar)?;
         self.expect(TokenType::KWIs)?;
@@ -784,15 +780,15 @@ impl Parser {
         check_expression: &Expression,
     ) -> CompilerResult<()> {
         if statements.is_empty() {
-            Err(CompilerError {
-                kind: ErrorCode::InvalidStatement,
-                message: format!("Er valt niks te doen"),
-                span_message: format!("Dit blok is leeg."),
-                span: (start.span.0, check_expression.span.1),
-            })?;
+            Err(CompilerError::new(
+                ErrorCode::InvalidStatement,
+                format!("Er valt niks te doen"),
+                (start.span.0, check_expression.span.1),
+            )
+            .with_span_message(format!("Dit blok is leeg.")))
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 
     fn variable_assignment_unary(
@@ -859,17 +855,17 @@ impl Parser {
 
                     if self.next_is(TokenType::KWAan) {
                         if multipart {
-                            return Err(CompilerError {
-                                kind: ErrorCode::InvalidExpression,
-                                message: format!(
+                            return Err(CompilerError::new(
+                                ErrorCode::InvalidExpression,
+                                format!(
                                     "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
                                     self.peek().unwrap().type_
                                 ),
-                                span_message: format!(
-                                    "Mogelijk ben je 'en' vergeten vóór het laatste element."
-                                ),
-                                span: self.peek().unwrap().span,
-                            });
+                                self.peek().unwrap().span,
+                            )
+                            .with_span_message(format!(
+                                "Mogelijk ben je 'en' vergeten vóór het laatste element."
+                            )));
                         }
                         break;
                     }
@@ -879,17 +875,17 @@ impl Parser {
                         break;
                     }
 
-                    return Err(CompilerError {
-                        kind: ErrorCode::InvalidExpression,
-                        message: format!(
+                    return Err(CompilerError::new(
+                        ErrorCode::InvalidExpression,
+                        format!(
                             "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
                             self.peek().unwrap().type_
                         ),
-                        span_message: format!(
-                            "Mogelijk ben je 'en' vergeten vóór het laatste element."
-                        ),
-                        span: self.peek().unwrap().span,
-                    });
+                        self.peek().unwrap().span,
+                    )
+                    .with_span_message(format!(
+                        "Mogelijk ben je 'en' vergeten vóór het laatste element."
+                    )));
                 }
 
                 self.expect(TokenType::KWAan)?;

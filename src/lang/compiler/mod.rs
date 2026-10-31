@@ -4,7 +4,13 @@ pub(super) mod parser;
 
 mod numeric_literal;
 
-use crate::{lang::compiler::parser::statement::Statement, logger::PolderError};
+use crate::{
+    lang::{
+        compiler::parser::{Parser, statement::Statement},
+        typechecker::Typechecker,
+    },
+    logger::PolderError,
+};
 use lexer::{Lexer, token::TokenType};
 
 pub(crate) type Span = (usize, usize);
@@ -14,15 +20,53 @@ pub(crate) struct CompilerError {
     #[allow(dead_code)]
     pub(crate) kind: ErrorCode,
     pub(crate) message: String,
-    pub(crate) span_message: String,
+    pub(crate) span_message: Option<String>,
     pub(crate) span: Span,
+    pub(crate) help: Option<Help>,
+}
+
+impl CompilerError {
+    pub(crate) fn new(kind: ErrorCode, message: String, span: Span) -> Self {
+        CompilerError {
+            kind,
+            message,
+            span,
+            span_message: None,
+            help: None,
+        }
+    }
+
+    pub(crate) fn with_span_message(mut self, span_message: String) -> Self {
+        self.span_message = Some(span_message);
+        self
+    }
+
+    pub(crate) fn with_help(mut self, span: Span, message: String) -> Self {
+        self.help = Some(Help { span, message });
+        self
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct Help {
+    span: Span,
+    message: String,
+}
+
+impl Help {
+    fn span(&self) -> Span {
+        self.span
+    }
+    fn message(&self) -> String {
+        self.message.clone()
+    }
 }
 
 impl From<CompilerError> for PolderError {
     fn from(value: CompilerError) -> Self {
         PolderError {
-            message: value.message,
-            span_message: value.span_message,
+            message: value.message.clone(),
+            span_message: value.span_message.unwrap_or(value.message),
             span: value.span,
         }
     }
@@ -47,6 +91,7 @@ pub(crate) enum ErrorCode {
     ParseIntError,
     InvalidThenStatement,
     InvalidStatement,
+    RedefinitionOfVariable,
 }
 
 impl From<ErrorCode> for String {
@@ -62,5 +107,9 @@ impl std::fmt::Display for ErrorCode {
 }
 
 pub(crate) fn compile(input: &str) -> Result<Vec<Statement>, CompilerError> {
-    parser::Parser::parse(Lexer::lex(input)?)
+    let tokens = Lexer::lex(input)?;
+    let ast = Parser::parse(tokens)?;
+    Typechecker::typecheck(&ast)?;
+
+    Ok(ast)
 }
