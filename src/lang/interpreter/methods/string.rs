@@ -16,9 +16,7 @@ pub(super) fn push(
     span: Span,
 ) -> Result<Literal, RuntimeError> {
     match &variable.value {
-        Some((Literal::String(str), _)) => {
-            // unpack args
-
+        Some(Literal::String(str)) => {
             let arg = arguments
                 .iter()
                 .map(|a| a.0.clone())
@@ -90,7 +88,7 @@ pub(super) fn get(
     span: Span,
 ) -> Result<Literal, RuntimeError> {
     match &variable.value {
-        Some((Literal::String(str), _)) => {
+        Some(Literal::String(str)) => {
             let index = match arguments.get(0) {
                 Some(store_value) => match store_value.0 {
                     Literal::Integer(int) => Ok(int),

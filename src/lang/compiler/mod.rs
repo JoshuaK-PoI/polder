@@ -85,7 +85,7 @@ impl From<CompilerError> for PolderError {
 
 pub(crate) type CompilerResult<T> = Result<T, CompilerError>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ErrorCode {
     NoTokensLeft,
     UnshiftedUnexpectedToken,
@@ -108,6 +108,7 @@ pub(crate) enum ErrorCode {
     UninitializedVariable,
     ConstVariable,
     DefiniteMustHaveValue,
+    IncompatibleTypes,
 }
 
 impl From<ErrorCode> for String {

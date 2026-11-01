@@ -59,9 +59,7 @@ impl From<std::io::Error> for RuntimeError {
 }
 pub(crate) enum RuntimeErrorKind {
     UndefinedVariable,
-    VariableAlreadyDefined,
     VariableHasNoValue,
-    VariableIsConst,
     MismatchedType,
     NoArgumentsProvided,
     InvalidArgument,
@@ -77,9 +75,7 @@ impl From<RuntimeErrorKind> for String {
     fn from(kind: RuntimeErrorKind) -> String {
         match kind {
             RuntimeErrorKind::UndefinedVariable => "bestaat niet".to_string(),
-            RuntimeErrorKind::VariableAlreadyDefined => "bestaat al".to_string(),
             RuntimeErrorKind::VariableHasNoValue => "heeft nog geen waarde".to_string(),
-            RuntimeErrorKind::VariableIsConst => "kan niet opnieuw worden toegewezen".to_string(),
             RuntimeErrorKind::MismatchedType => "Verkeerd type".to_string(),
             RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
             RuntimeErrorKind::InvalidArgument => "Ongeldig argument".to_string(),

@@ -1,23 +1,19 @@
-use log::debug;
 use serde::Serialize;
 
 use crate::lang::compiler::{
-    Span,
+    CompilerError, CompilerResult, ErrorCode, Span,
+    lexer::token::TokenType,
     lexer::token::{KEYWORDS, LITERALS, Token},
     parser::{
         Parser, ParserMode,
         expression::{
-            BinaryExpression,
-            ExpressionType::{self, ArrayDecl},
-            MethodCallExpression, UnaryExpression,
+            BinaryExpression, Expression, ExpressionType, MethodCallExpression, UnaryExpression,
             literal::literal,
         },
+        intrinsic::Intrinsics,
+        types::PolderType,
     },
 };
-
-use super::super::{CompilerError, CompilerResult, ErrorCode, lexer::token::TokenType};
-
-use super::{expression::Expression, intrinsic::Intrinsics, types::PolderType};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) enum Statement {
@@ -125,10 +121,10 @@ impl Parser {
             TokenType::KWDeel => self.arith_divide(),
             TokenType::KWVerhoog => self.arith_increment(),
             TokenType::KWVerlaag => self.arith_decrement(),
-            TokenType::KWAls => self.if_statement(),
-            TokenType::KWZolang => self.while_statement(),
-            TokenType::KWVoeg => self.method_statement(),
-            TokenType::KWVoor => self.foreach_statement(),
+            TokenType::KWAls => self.r#if(),
+            TokenType::KWZolang => self.r#while(),
+            TokenType::KWVoeg => self.method(),
+            TokenType::KWVoor => self.foreach(),
             TokenType::Comment => {
                 self.expect(TokenType::Comment)?;
                 Ok(Statement::Comment)
@@ -241,27 +237,21 @@ impl Parser {
             )));
         }
 
-        /*
-         *
-         * NEW:
-         *  Branching paths
-         *  - A type could be declared at this point with an article and the type name
-         *      - If so, check against the list of known types to determine if this is a valid type
-         *  - An expression could be declared at this point
-         *      - This is not a type in itself, in that case we have to infer the type from the expression result
-         *        which is done in the typechecker.
-         */
         let type_ = self.try_get_type()?;
-
         let initializer = if !self.next_is(TokenType::KWZijn) {
             Some(self.expression()?)
         } else {
             None
         };
-        debug!(
-            "type and initializers of {}: {:?}, {:?}",
-            identifier.value, type_, initializer
-        );
+
+        if is_const && initializer.is_none() {
+            return Err(CompilerError::new(
+                ErrorCode::ConstDeclarationMustHaveValue,
+                format!("Geen waarde toegewezen aan constante."),
+                identifier.span,
+            ));
+        }
+
         if type_.is_none() && initializer.is_none() {
             unreachable!(
                 "In variable declaration for {}: It should not be possible to have no initializer and no type, but this was the case.",
@@ -270,114 +260,15 @@ impl Parser {
         }
 
         self.expect(TokenType::KWZijn)?;
-        // TODO: Check indefinite article with a const modifier; this is probably an error
-        //   if is_indefinite_article {
-        //      if is_const {
-        //          return Err(CompilerError::new(
-        //              ErrorCode::ConstDeclarationMustHaveValue,
-        //              format!("Geen waarde toegewezen aan constante."),
-        //              identifier.span,
-        //          ));
-        //      }
 
-        let result_expression = match initializer {
-            None => Ok(Statement::VariableDeclaration(
-                VariableDeclarationStatement {
-                    identifier,
-                    type_,
-                    initializer,
-                    is_const,
-                },
-            )),
-            Some(ref expression) => match expression.expression {
-                ExpressionType::Binary(_) | ExpressionType::Literal(_) => Ok(
-                    Statement::VariableDeclaration(VariableDeclarationStatement {
-                        identifier,
-                        type_,
-                        initializer,
-                        is_const,
-                    }),
-                ),
-                ExpressionType::ArrayDecl(ref elements) => {
-                    let span = (
-                        elements.first().unwrap().span.0,
-                        elements.last().unwrap().span.1,
-                    );
-
-                    Ok(Statement::VariableDeclaration(
-                        VariableDeclarationStatement {
-                            identifier,
-                            type_,
-                            initializer: Some(Expression {
-                                expression: ArrayDecl(elements.to_owned()),
-                                span,
-                            }),
-                            is_const,
-                        },
-                    ))
-                }
-                ExpressionType::Type(_) => panic!(
-                    "Got a type expression for declaration of {}, this shouldn't be possible anymore with the new type system",
-                    identifier.value
-                ),
-                ExpressionType::MethodCall(ref method) => {
-                    // Note:
-                    // This is a bit of a hack. Because type declarations for lists and
-                    // method calls on identifiers are syntactically the same,
-                    // the expression parser can't distinguish the two.
-                    // For a variable declaration with an indefinite article
-                    // only a type is possible, so we can assume here that
-                    // a type was actually meant.
-                    // In the future, we should split type declaration from actual expressions
-                    // because they wouldn't be valid expressions anyway.
-
-                    if method.method_name == "lijst" {
-                        let inner_type =
-                            match PolderType::from_pluralized(&match method.class.expression {
-                                ExpressionType::Identifier(ref ident) => Ok(ident.value.clone()),
-                                _ => Err(CompilerError::new(
-                                    ErrorCode::IndefiniteCannotHaveValue,
-                                    format!("Verwachtte een type hier"),
-                                    method.class.span,
-                                )),
-                            }?) {
-                                Some(type_) => Ok(type_),
-                                None => Err(CompilerError::new(
-                                    ErrorCode::IndefiniteCannotHaveValue,
-                                    format!("Verwachtte een type hier"),
-                                    method.class.span,
-                                )),
-                            }?;
-                        Ok(Statement::VariableDeclaration(
-                            VariableDeclarationStatement {
-                                identifier,
-                                type_,
-                                initializer: Some(Expression {
-                                    expression: ExpressionType::Type(PolderType::Array(Some(
-                                        Box::new(inner_type),
-                                    ))),
-                                    span: method.class.span,
-                                }),
-                                is_const,
-                            },
-                        ))
-                    } else {
-                        //TODO: Test if these error messages can be reached; and if the span they point to makes sense
-                        Err(CompilerError::new(
-                            ErrorCode::IndefiniteCannotHaveValue,
-                            format!("Verwachtte een type hier"),
-                            method.class.span,
-                        ))
-                    }
-                }
-                ref _expression => panic!(
-                    "Invalid expression for variable declaration: {:?}",
-                    _expression
-                ),
+        Ok(Statement::VariableDeclaration(
+            VariableDeclarationStatement {
+                identifier,
+                type_,
+                initializer,
+                is_const,
             },
-        }?;
-
-        Ok(result_expression)
+        ))
     }
 
     pub(super) fn get_identifier(&mut self) -> Result<Token, CompilerError> {
@@ -486,7 +377,7 @@ impl Parser {
         Ok(self.variable_assignment_unary(start, UnaryOp::Decrement, ident, ident_expr))
     }
 
-    fn if_statement(&mut self) -> CompilerResult<Statement> {
+    fn r#if(&mut self) -> CompilerResult<Statement> {
         if self.mode == ParserMode::InThenStatement {
             return Err(CompilerError::new(
                 ErrorCode::InvalidThenStatement,
@@ -585,7 +476,7 @@ impl Parser {
                 self.expect(TokenType::KWKees)?;
             } else if self.next_is_then_unshift(TokenType::KWAnders) {
                 if self.next_is_then_unshift(TokenType::Comma) {
-                    else_statements.push(self.if_statement()?);
+                    else_statements.push(self.r#if()?);
                 } else {
                     self.expect(TokenType::Colon)?;
 
@@ -638,7 +529,7 @@ impl Parser {
                 self.expect(TokenType::Comma)?;
 
                 if self.next_is(TokenType::KWAls) {
-                    else_statements.push(self.if_statement()?);
+                    else_statements.push(self.r#if()?);
                 } else {
                     self.mode = ParserMode::InThenStatement;
                     else_statements.push(self.stmt()?);
@@ -650,7 +541,7 @@ impl Parser {
         Ok(else_statements)
     }
 
-    fn while_statement(&mut self) -> CompilerResult<Statement> {
+    fn r#while(&mut self) -> CompilerResult<Statement> {
         if self.mode == ParserMode::InThenStatement {
             return Err(CompilerError::new(
                 ErrorCode::InvalidThenStatement,
@@ -699,7 +590,7 @@ impl Parser {
         }))
     }
 
-    fn foreach_statement(&mut self) -> CompilerResult<Statement> {
+    fn foreach(&mut self) -> CompilerResult<Statement> {
         let start = self.expect(TokenType::KWVoor)?.span.0;
         self.expect(TokenType::KWElke)?;
 
@@ -797,7 +688,7 @@ impl Parser {
         })
     }
 
-    fn method_statement(&mut self) -> Result<Statement, CompilerError> {
+    fn method(&mut self) -> Result<Statement, CompilerError> {
         match self.peek().unwrap().type_ {
             TokenType::KWVoeg => {
                 let start = self.expect(TokenType::KWVoeg)?.span.0;

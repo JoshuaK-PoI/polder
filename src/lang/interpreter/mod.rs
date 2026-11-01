@@ -82,27 +82,22 @@ impl Interpreter {
             Some(expr) => {
                 let expr_result = self.interpret_expression(expr)?;
                 let expression_result_type: PolderType = (&expr_result).into();
-                (Some((expr_result, expr.span)), expression_result_type)
+                (Some(expr_result), Some(expression_result_type))
             }
-            None => todo!("Declaring variable without an initializer"),
-        };
-
-        let variable = Variable {
-            declared_at: declaration.identifier.span,
-            value: store_value,
-            type_: expression_type,
-            is_const: declaration.is_const,
+            None => (None, None),
         };
 
         self.store.declare(
             &declaration.identifier.value,
-            variable,
-            // @Check: Is this still needed if the declaration already has a declared_at?
-            // Also, since most of the errors are bound to the typechecker now,
-            // storing the declaration location in the store is probably no longer needed
-            // in which case both the variable and this method don't need the location stored
-            declaration.identifier.span,
-        )?;
+            Variable {
+                value: store_value,
+                type_: declaration.type_
+                    .as_ref()
+                    .or(expression_type.as_ref())
+                    .expect(format!("Interpreter: Tried to declare variable {} without a type (none in either the declaration or the initializer expression", declaration.identifier.value).as_str())
+                    .clone(),
+            },
+        );
         Ok(())
     }
 
@@ -125,16 +120,12 @@ impl Interpreter {
             ExpressionType::Unary(un) => self.interpret_unary_expression(un),
             ExpressionType::Binary(bin) => self.interpret_binary_expression(bin, expression.span),
             ExpressionType::Identifier(ident) => {
-                Ok(self.store.get(&ident.value).value.clone().unwrap().0)
+                Ok(self.store.get(&ident.value).value.clone().unwrap())
             }
             ExpressionType::ArrayDecl(arr) => self.interpret_array(arr),
             ExpressionType::MethodCall(method) => {
                 self.interpret_method_call(method, expression.span)
             }
-            _ => Err(runtime_error!(
-                expression.span,
-                RuntimeErrorKind::UnsupportedFunction
-            )),
         }
     }
 
@@ -413,8 +404,8 @@ impl Interpreter {
 
         match variable.type_ {
             PolderType::Array(_) => {
-                let (store_value, span) = match variable.get_value() {
-                    Some((value, span)) => Ok((value, span)),
+                let store_value = match variable.get_value() {
+                    Some(value) => Ok(value),
                     None => Err(runtime_error!(
                         foreach_statement.span,
                         RuntimeErrorKind::VariableHasNoValue,
@@ -431,28 +422,19 @@ impl Interpreter {
                             self.store.declare(
                                 &foreach_statement.element_binding,
                                 Variable {
-                                    declared_at: foreach_statement.span,
                                     type_: element.into(),
-                                    value: Some((element.clone(), *span)),
-                                    is_const: true,
+                                    value: Some(element.clone()),
                                 },
-                                *span,
-                            )?;
+                            );
 
                             if foreach_statement.index_binding.is_some() {
                                 self.store.declare(
                                     foreach_statement.index_binding.as_ref().unwrap(),
                                     Variable {
-                                        declared_at: foreach_statement.span,
                                         type_: PolderType::Integer,
-                                        value: Some((
-                                            Literal::Integer(index as i64),
-                                            foreach_statement.span,
-                                        )),
-                                        is_const: true,
+                                        value: Some(Literal::Integer(index as i64)),
                                     },
-                                    *span,
-                                )?;
+                                );
                             }
 
                             foreach_statement

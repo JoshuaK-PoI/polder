@@ -1,11 +1,9 @@
-use log::debug;
-
 use crate::lang::{
     compiler::{
         CompilerError, CompilerResult, ErrorCode,
-        parser::statement::{
-            IntrinsicStatement, Statement, VariableAssignmentStatement,
-            VariableDeclarationStatement,
+        parser::{
+            statement::{Statement, VariableAssignmentStatement, VariableDeclarationStatement},
+            types::PolderType,
         },
     },
     typechecker::{Typecheck, Typechecker},
@@ -15,7 +13,6 @@ impl Typecheck for Statement {
     type Value = ();
 
     fn typecheck(&self, typechecker: &mut Typechecker) -> CompilerResult<Self::Value> {
-        debug!("{:?}", self);
         match self {
             Statement::Intrinsic(intrinsic) => self.intrinsic(intrinsic, typechecker),
             Statement::VariableDeclaration(var_decl) => {
@@ -30,25 +27,75 @@ impl Typecheck for Statement {
 }
 
 impl Statement {
-    fn intrinsic(
-        &self,
-        intrinsic: &IntrinsicStatement,
-        typechecker: &mut Typechecker,
-    ) -> CompilerResult<()> {
-        for expression in &intrinsic.args {
-            expression.typecheck(typechecker)?;
-        }
-
-        Ok(())
-    }
-
     fn variable_declaration(
         &self,
         var_decl: &VariableDeclarationStatement,
         typechecker: &mut Typechecker,
     ) -> CompilerResult<()> {
         let declared_type = match &var_decl.initializer {
-            Some(initializer) => initializer.typecheck(typechecker)?,
+            Some(initializer) => {
+                let initialized_type = initializer.typecheck(typechecker)?;
+                match &var_decl.type_ {
+                    //
+                    // TODO: This is a mess now. Checking array types should probably be factored out somehow;
+                    //       maybe it is possible to make an array type compare on PolderType itself
+                    //       but that should also gracefully handle None inner types.
+
+                    Some(type_) => match type_ {
+                        PolderType::Array(inner_type) => match initialized_type {
+                            PolderType::Array(ref inner_initialized_type) => {
+                                if inner_type.is_some()
+                                    &&
+                                    inner_type.as_ref().unwrap() != inner_initialized_type.as_ref().unwrap()
+                                {
+                                    return Err(CompilerError::new(
+                                    ErrorCode::IncompatibleTypes,
+                                    format!(
+                                        "Het type van {} is niet compatibel met het type van de initiele waarde.",
+                                        var_decl.identifier.value
+                                    ),
+                                    var_decl.identifier.span,
+                                )
+                                    .with_span_message(format!("`{}` is een {}", var_decl.identifier.value, type_))
+                                    .with_info(initializer.span, format!("Het resultaat van deze expressie is een {}", initialized_type))
+                                );
+                                } else {
+                                    initialized_type.clone()
+                                }
+                            }
+                            _ =>         return Err(CompilerError::new(
+                                    ErrorCode::IncompatibleTypes,
+                                    format!(
+                                        "Het type van {} is niet compatibel met het type van de initiele waarde.",
+                                        var_decl.identifier.value
+                                    ),
+                                    var_decl.identifier.span,
+                                )
+                                    .with_span_message(format!("`{}` is een {}", var_decl.identifier.value, type_))
+                                    .with_info(initializer.span, format!("Het resultaat van deze expressie is een {}", initialized_type))
+                                )
+                        },
+                        type_ => {
+                            if type_ != &initialized_type {
+                                return Err(CompilerError::new(
+                                    ErrorCode::IncompatibleTypes,
+                                    format!(
+                                        "Het type van {} is niet compatibel met het type van de initiele waarde.",
+                                        var_decl.identifier.value
+                                    ),
+                                    var_decl.identifier.span,
+                                )
+                                    .with_span_message(format!("`{}` is een {}", var_decl.identifier.value, type_))
+                                    .with_info(initializer.span, format!("Het resultaat van deze expressie is een {}", initialized_type))
+                                );
+                            } else {
+                                type_.clone()
+                            }
+                        }
+                    },
+                    None => initialized_type,
+                }
+            }
             None => var_decl
                 .type_
                 .as_ref()
@@ -68,7 +115,7 @@ impl Statement {
             var_decl.identifier.span,
             declared_type,
             var_decl.is_const,
-            false,
+            var_decl.initializer.is_some(),
         )?;
 
         Ok(())
@@ -81,7 +128,7 @@ impl Statement {
     ) -> CompilerResult<()> {
         let assn_type = var_assn.expression.typecheck(typechecker)?;
 
-        if let Some(var) = typechecker.find_identifier(&var_assn.identifier.value) {
+        if let Some(var) = typechecker.find_identifier_mut(&var_assn.identifier.value) {
             if var.is_const {
                 return Err(CompilerError::new(
                     ErrorCode::ConstVariable,
@@ -90,17 +137,28 @@ impl Statement {
                 ));
             }
 
-            typechecker
-                .typecheck_against_var(var, assn_type, var_assn.expression.span)
-                .map_err(|err| {
-                    err.with_info(
-                        var.loc,
-                        format!(
-                            "{} is hier gedefinieerd als {}",
-                            var_assn.identifier.value, var.type_
-                        ),
-                    )
-                })
+            if var.type_ != assn_type {
+                return Err(CompilerError::new(
+                    ErrorCode::MismatchedType,
+                    format!(
+                        "Een {} kan niet toegewezen worden aan een {}",
+                        assn_type, var.type_
+                    ),
+                    var_assn.expression.span,
+                )
+                .with_info(
+                    var.loc,
+                    format!(
+                        "{} is hier gedefinieerd als {}",
+                        var_assn.identifier.value, var.type_
+                    ),
+                ));
+            }
+
+            var.initialized = true;
+            var.modified = true;
+
+            Ok(())
         } else {
             Err(CompilerError::new(
                 ErrorCode::UndefinedVariable,

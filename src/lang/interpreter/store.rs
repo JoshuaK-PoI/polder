@@ -18,10 +18,8 @@ pub(crate) struct Store {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Variable {
-    pub(crate) declared_at: Span,
     pub(crate) type_: PolderType,
-    pub(crate) value: Option<(Literal, Span)>,
-    pub(crate) is_const: bool,
+    pub(crate) value: Option<Literal>,
 }
 
 #[hotpath::measure_all]
@@ -57,29 +55,8 @@ impl Store {
         });
     }
 
-    pub(crate) fn declare(
-        &mut self,
-        identifier: &String,
-        variable: Variable,
-        range: Span,
-    ) -> Result<(), RuntimeError> {
-        if self
-            .variables
-            .get(&self.scope)
-            .expect("variable store at scope does not exist")
-            .contains_key(identifier)
-        {
-            return Err(runtime_error!(
-                range,
-                RuntimeErrorKind::VariableAlreadyDefined,
-                identifier
-            ));
-        }
-
-        Store::check_type_compatible(&identifier, &variable, None)?;
-
+    pub(crate) fn declare(&mut self, identifier: &String, variable: Variable) -> () {
         self.insert(identifier, variable);
-        Ok(())
     }
 
     pub(crate) fn insert(&mut self, identifier: &String, variable: Variable) {
@@ -94,7 +71,7 @@ impl Store {
         value: (Literal, Span),
         range: Span,
     ) -> Result<(), RuntimeError> {
-        let (variable, scope) = match self.search_scopes(&identifier, &self.scope) {
+        let (_variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
             None => Err(runtime_error!(
                 range,
@@ -103,12 +80,9 @@ impl Store {
             )),
         }?;
 
-        self.check_const(&identifier, variable, range)?;
-        Store::check_type_compatible(&identifier, variable, Some(&value))?;
-
         self.variables.entry(scope).and_modify(|m| {
             m.entry(identifier.clone())
-                .and_modify(|variable| variable.value = Some((value.0.clone(), value.1)));
+                .and_modify(|variable| variable.value = Some(value.0.clone()));
         });
 
         Ok(())
@@ -119,7 +93,7 @@ impl Store {
         input: String,
         range: Span,
     ) -> Result<(), RuntimeError> {
-        let (variable, scope) = match self.search_scopes(&identifier, &self.scope) {
+        let (_variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
             None => Err(runtime_error!(
                 range,
@@ -128,42 +102,14 @@ impl Store {
             )),
         }?;
 
-        self.check_const(&identifier, variable, range)?;
-
         let store_value = self.try_marshalling_type(&identifier, input)?;
-        let mut modified: Result<(), RuntimeError> = Ok(());
-
         self.variables.entry(scope).and_modify(|m| {
             m.entry(identifier.clone()).and_modify(|variable| {
-                if variable.value.is_some()
-                    && Store::check_type_compatible(
-                        &identifier,
-                        variable,
-                        Some(&(store_value.clone(), range)),
-                    )
-                    .is_err()
-                {
-                    modified = Err(runtime_error!(
-                        range,
-                        RuntimeErrorKind::MismatchedType,
-                        format!(
-                            "Verwachtte een {}, maar zag een {}",
-                            variable.type_,
-                            store_value.get_type()
-                        ),
-                        format!(
-                            "Verwachtte een {}, maar zag een {}",
-                            variable.type_,
-                            store_value.get_type()
-                        )
-                    ))
-                }
-
-                variable.value = Some((store_value, range));
+                variable.value = Some(store_value);
             });
         });
 
-        modified
+        Ok(())
     }
 
     pub(crate) fn get(&self, identifier: &str) -> &Variable {
@@ -171,38 +117,6 @@ impl Store {
             var
         } else {
             panic!("Attempted to access undefined variable {}", identifier)
-        }
-    }
-
-    pub(crate) fn check_type_compatible(
-        identifier: &str,
-        variable: &Variable,
-        input: Option<&(Literal, Span)>,
-    ) -> Result<(), RuntimeError> {
-        let value_to_type_check = input.or(variable.value.as_ref());
-
-        match value_to_type_check {
-            // We can't type check an empty value,
-            // expect later in the program to handle empty value cases
-            None => Ok(()),
-            Some(value) => match &value.0 {
-                Literal::Vec(elements) => match &variable.type_ {
-                    PolderType::Array(_) => elements.into_iter().try_for_each(|element| {
-                        Store::type_check_literal(identifier, &variable.type_, &element, value.1)
-                    }),
-                    _ => Err(runtime_error!(
-                        value.1,
-                        RuntimeErrorKind::MismatchedType,
-                        format!(
-                            "Waarde is een {}, maar het type van {} is {}",
-                            Into::<PolderType>::into(&value.0),
-                            identifier,
-                            variable.type_
-                        )
-                    )),
-                },
-                literal => Store::type_check_literal(identifier, &variable.type_, literal, value.1),
-            },
         }
     }
 
@@ -216,77 +130,6 @@ impl Store {
             Some(var) => Some((var, *scope)),
             None if *scope == 0 => None,
             None => self.search_scopes(identifier, &(scope - 1)),
-        }
-    }
-
-    fn type_check_literal(
-        identifier: &str,
-        literal_type: &PolderType,
-        value: &Literal,
-        range: Span,
-    ) -> Result<(), RuntimeError> {
-        if match value {
-            Literal::Boolean(_) => *literal_type == PolderType::Boolean,
-            Literal::Char(_) => *literal_type == PolderType::Char,
-            Literal::String(_) => *literal_type == PolderType::String,
-            Literal::Integer(_) => *literal_type == PolderType::Integer,
-            Literal::Float(_) => *literal_type == PolderType::Float,
-            Literal::Vec(_) => unreachable!("Vector types should be unpacked before typechecking"),
-        } {
-            Ok(())
-        } else {
-            match literal_type {
-                PolderType::Array(inner_type) => match inner_type {
-                    Some(inner_type) => {
-                        Store::type_check_literal(identifier, inner_type.as_ref(), value, range)
-                        .map_err(|_| runtime_error!(
-                                range,
-                                RuntimeErrorKind::MismatchedType,
-                                format!("{}:", value),
-                                format!("{} is een {}, {} (van type {}) kan hier niet aan worden toegevoegd.",
-                                    identifier,
-                                    literal_type,
-                                    value,
-                                    value.get_type(),
-                                )
-                            ))
-                    }
-                    None => Ok(()),
-                },
-                _ => Err(runtime_error!(
-                    range,
-                    RuntimeErrorKind::MismatchedType,
-                    "",
-                    format!(
-                        "{} is een {}, geen {}",
-                        identifier,
-                        literal_type,
-                        value.get_type()
-                    )
-                )),
-            }
-        }
-    }
-
-    fn check_const(
-        &self,
-        identifier: &str,
-        variable: &Variable,
-        range: Span,
-    ) -> Result<(), RuntimeError> {
-        if variable.is_const {
-            Err(runtime_error!(
-                range,
-                RuntimeErrorKind::VariableIsConst,
-                identifier,
-                format!(
-                    "{} is voorgoed {}",
-                    identifier,
-                    variable.get_value().as_ref().unwrap().0
-                )
-            ))
-        } else {
-            Ok(())
         }
     }
 
@@ -361,7 +204,7 @@ fn try_char(input: String) -> Result<Literal, RuntimeError> {
 }
 
 impl Variable {
-    pub(crate) fn get_value(&self) -> &Option<(Literal, Span)> {
-        &self.value
+    pub(crate) fn get_value(&self) -> Option<&Literal> {
+        self.value.as_ref()
     }
 }

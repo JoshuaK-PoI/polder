@@ -3,7 +3,7 @@ use crate::{
         compiler::{Span, parser::expression::literal::Literal},
         interpreter::{
             runtime_error::{RuntimeError, RuntimeErrorKind},
-            store::{Store, Variable},
+            store::Variable,
         },
     },
     runtime_error,
@@ -15,9 +15,9 @@ pub(crate) fn length(
     span: Span,
 ) -> Result<Literal, RuntimeError> {
     match variable.get_value() {
-        Some((Literal::Vec(arr), _span)) => Ok(Literal::Integer(arr.len().try_into().unwrap())),
+        Some(Literal::Vec(arr)) => Ok(Literal::Integer(arr.len().try_into().unwrap())),
         Some(store_value) => {
-            todo!("Implement internal function 'lengte' for {}", store_value.0)
+            todo!("Implement internal function 'lengte' for {}", store_value)
         }
         None => Err(runtime_error!(
             span,
@@ -29,15 +29,13 @@ pub(crate) fn length(
 
 pub(super) fn push(
     variable: &Variable,
-    variable_identifier: &String,
     arguments: Vec<(Literal, Span)>,
     span: Span,
 ) -> Result<Literal, RuntimeError> {
     match variable.get_value() {
-        Some((Literal::Vec(arr), _)) => Ok({
+        Some(Literal::Vec(arr)) => Ok({
             let mut arr = arr.clone();
             for value in arguments {
-                Store::check_type_compatible(variable_identifier, variable, Some(&value))?;
                 match value.0 {
                     Literal::Vec(argument_arr) => {
                         let mut argument_arr = argument_arr.clone();
@@ -63,7 +61,7 @@ pub(super) fn push(
 
             Ok(Literal::Vec(vec))
         }
-        Some((lit, _)) => Err(runtime_error!(
+        Some(lit) => Err(runtime_error!(
             span,
             RuntimeErrorKind::UnsupportedFunction,
             lit,
@@ -79,8 +77,8 @@ pub(super) fn get(
     span: Span,
 ) -> Result<Literal, RuntimeError> {
     let arr = match variable.value {
-        Some(ref value) => match value.0 {
-            Literal::Vec(ref arr) => arr,
+        Some(ref value) => match value {
+            Literal::Vec(arr) => arr,
             _ => unreachable!(),
         },
         _ => unreachable!(),

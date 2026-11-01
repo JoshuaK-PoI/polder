@@ -7,7 +7,6 @@ use crate::lang::compiler::{
     parser::{
         Parser,
         statement::{BinaryOp, UnaryOp},
-        types::PolderType,
     },
 };
 
@@ -26,7 +25,6 @@ pub(crate) enum ExpressionType {
     MethodCall(MethodCallExpression),
     Literal(Literal),
     Identifier(Token),
-    Type(PolderType),
     Binary(BinaryExpression),
     Unary(UnaryExpression),
 }
@@ -61,7 +59,6 @@ impl std::fmt::Display for ExpressionType {
                 ExpressionType::Unary(_) => "Unary".to_string(),
                 ExpressionType::Literal(_) => "Literal".to_string(),
                 ExpressionType::Identifier(_) => "Identifier".to_string(),
-                ExpressionType::Type(_) => "Type".to_string(),
                 ExpressionType::ArrayDecl(_) => "ArrayDecl".to_string(),
                 ExpressionType::MethodCall(_) => "MethodCall".to_string(),
             }
@@ -222,7 +219,7 @@ impl Parser {
         let end = class.span.1;
 
         Ok(Expression {
-            expression:ExpressionType::MethodCall(MethodCallExpression {
+            expression: ExpressionType::MethodCall(MethodCallExpression {
                 method_name: function_name,
                 arguments,
                 class: Box::new(class),

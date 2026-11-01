@@ -3,7 +3,9 @@ use crate::lang::{
         CompilerError, CompilerResult, ErrorCode,
         lexer::token::Token,
         parser::{
-            expression::{Expression, ExpressionType, literal::Literal},
+            expression::{
+                BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
+            },
             types::PolderType,
         },
     },
@@ -16,8 +18,10 @@ impl Typecheck for Expression {
         match &self.expression {
             ExpressionType::Literal(literal) => self.literal(literal),
             ExpressionType::Identifier(identifier) => self.identifier(identifier, typechecker),
-            ExpressionType::Type(type_) => Ok(type_.clone()),
-            expr => todo!("Expression visited {:?}", expr),
+            ExpressionType::Binary(binary) => self.binary(binary, typechecker),
+            ExpressionType::Unary(unary) => self.unary(unary, typechecker),
+            ExpressionType::ArrayDecl(arr) => self.array_decl(arr, typechecker),
+            expr => unimplemented!("Typecheck expression {:?}", expr),
         }
     }
 }
@@ -49,5 +53,65 @@ impl Expression {
                 self.span,
             ))
         }
+    }
+
+    fn unary(
+        &self,
+        unary: &UnaryExpression,
+        typechecker: &mut Typechecker,
+    ) -> CompilerResult<PolderType> {
+        unary.expr.typecheck(typechecker)
+    }
+
+    fn binary(
+        &self,
+        binary: &BinaryExpression,
+        typechecker: &mut Typechecker,
+    ) -> CompilerResult<PolderType> {
+        let lhs = binary.lhs.typecheck(typechecker)?;
+        let rhs = binary.rhs.typecheck(typechecker)?;
+
+        if lhs != rhs {
+            return Err(CompilerError::new(
+                ErrorCode::MismatchedType,
+                format!("De linker- en rechterkant van deze expressie hebben verschillende types"),
+                binary.lhs.span,
+            )
+            .with_span_message(format!("Deze kant resulteert in een {}", lhs))
+            .with_info(
+                binary.rhs.span,
+                format!("Deze kant resulteert in een {}", rhs),
+            ));
+        }
+
+        Ok(lhs)
+    }
+
+    fn array_decl(
+        &self,
+        arr: &Vec<Expression>,
+        typechecker: &mut Typechecker,
+    ) -> CompilerResult<PolderType> {
+        let mut initialized_type = None;
+        for expr in arr {
+            let type_ = expr.typecheck(typechecker)?;
+            match initialized_type {
+                Some(ref initialized_type) => {
+                    if initialized_type != &type_ {
+                        return Err(CompilerError::new(
+                            ErrorCode::MismatchedType,
+                            format!("Niet alle expressies in de lijst hebben hetzelfde type"),
+                            expr.span
+                        ).with_span_message(format!("Verwachtte een expressie die resulteert in een {}, maar deze expressie resulteert in een {}", initialized_type, type_)));
+                    }
+                }
+                None => initialized_type = Some(type_),
+            }
+        }
+
+        if initialized_type.is_none() {
+            panic!("After array declaration, no type was set (is the array empty?)");
+        }
+        Ok(PolderType::Array(Some(Box::new(initialized_type.unwrap()))))
     }
 }
