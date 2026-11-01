@@ -6,14 +6,12 @@ use crate::lang::compiler::{
     lexer::token::{ARITH_EXPR, ARTICLES, BINARY_OPERATORS, LITERALS, Token, TokenType},
     parser::{
         Parser,
-        expression::ExpressionType::{Binary, MethodCall, Unary},
         statement::{BinaryOp, UnaryOp},
         types::PolderType,
     },
 };
 
 use literal::{Literal, literal};
-use log::debug;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -79,7 +77,46 @@ impl Expression {
 
 impl Parser {
     pub(super) fn expression(&mut self) -> CompilerResult<Expression> {
-        self.comparison()
+        self.array_decl()
+    }
+
+    fn array_decl(&mut self) -> CompilerResult<Expression> {
+        let elem = self.comparison()?;
+        if self.next_is_any_of(&[TokenType::Comma, TokenType::KWEn]) {
+            let mut elem_vec = vec![elem];
+            loop {
+                if self.next_is_then_unshift(TokenType::KWEn) {
+                    elem_vec.push(self.comparison()?);
+                    break;
+                }
+
+                self.expect(TokenType::Comma)?;
+                elem_vec.push(self.comparison()?);
+
+                if !self.next_is_any_of(&[TokenType::Comma, TokenType::KWEn]) {
+                    return Err(CompilerError::new(
+                        ErrorCode::InvalidExpression,
+                        format!(
+                            "Verwachtte een komma of 'en', maar zag '{}'",
+                            self.peek().unwrap().value
+                        ),
+                        self.peek().unwrap().span,
+                    ));
+                }
+            }
+
+            let span = (
+                elem_vec.first().unwrap().span.0,
+                elem_vec.last().unwrap().span.1,
+            );
+
+            Ok(Expression {
+                expression: ExpressionType::ArrayDecl(elem_vec),
+                span,
+            })
+        } else {
+            Ok(elem)
+        }
     }
 
     fn comparison(&mut self) -> CompilerResult<Expression> {
@@ -98,7 +135,7 @@ impl Parser {
             let rhs = self.binary()?;
             let span = (lhs.span.0, rhs.span.1);
             let expression = Expression {
-                expression: Binary(BinaryExpression {
+                expression: ExpressionType::Binary(BinaryExpression {
                     op: token_type.into(),
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
@@ -108,7 +145,7 @@ impl Parser {
 
             if negate {
                 return Ok(Expression {
-                    expression: Unary(UnaryExpression {
+                    expression: ExpressionType::Unary(UnaryExpression {
                         op: UnaryOp::Negation,
                         expr: Box::new(expression),
                     }),
@@ -153,7 +190,7 @@ impl Parser {
                 let start = expr.span.0;
                 let end = rhs.span.1;
                 Ok(Expression {
-                    expression: Binary(BinaryExpression {
+                    expression: ExpressionType::Binary(BinaryExpression {
                         op,
                         lhs: Box::new(expr),
                         rhs: Box::new(rhs),
@@ -185,7 +222,7 @@ impl Parser {
         let end = class.span.1;
 
         Ok(Expression {
-            expression: MethodCall(MethodCallExpression {
+            expression:ExpressionType::MethodCall(MethodCallExpression {
                 method_name: function_name,
                 arguments,
                 class: Box::new(class),
@@ -196,7 +233,6 @@ impl Parser {
 
     fn literal(&mut self) -> CompilerResult<Expression> {
         if self.next_is_any_of(LITERALS) {
-            debug!("Taking {:?}", self.peek());
             literal(self.next().clone())
         } else {
             self.identifier()
@@ -217,47 +253,6 @@ impl Parser {
         Ok(Expression {
             expression: ExpressionType::Identifier(identifier),
             span,
-        })
-    }
-
-    fn parse_array_members(&mut self) -> CompilerResult<Expression> {
-        let mut elements: Vec<Expression> = Vec::new();
-        let mut multipart = false;
-        loop {
-            elements.push(self.expression()?);
-
-            if self.next_is_then_unshift(TokenType::Comma) {
-                multipart = true;
-                continue;
-            }
-
-            if self.next_is_then_unshift(TokenType::KWEn) {
-                elements.push(self.expression()?);
-                break;
-            }
-
-            if multipart {
-                return Err(CompilerError::new(
-                    ErrorCode::InvalidExpression,
-                    format!(
-                        "Verwachtte expressie, komma, of 'en' hier, maar vond '{}'",
-                        self.peek().unwrap().type_
-                    ),
-                    self.peek().unwrap().span,
-                )
-                .with_span_message(format!(
-                    "Mogelijk ben je 'en' vergeten vóór het laatste element."
-                )));
-            }
-
-            break;
-        }
-
-        let expr_span_start = elements.get(0).unwrap().span.0;
-        let expr_span_end = elements.get(elements.len() - 1).unwrap().span.1;
-        Ok(Expression {
-            expression: ExpressionType::ArrayDecl(elements),
-            span: (expr_span_start, expr_span_end),
         })
     }
 }

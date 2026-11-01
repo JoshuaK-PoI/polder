@@ -1,9 +1,8 @@
-use log::debug;
 use serde::Serialize;
 
 use super::super::{CompilerError, ErrorCode, lexer::token::TokenType};
 use crate::lang::compiler::{
-    CompilerResult, Span,
+    CompilerResult,
     lexer::token::{ARTICLES, Token},
     parser::Parser,
 };
@@ -169,9 +168,6 @@ impl Parser {
     }
 
     fn parse_type(&mut self, article: &Token) -> CompilerResult<Option<PolderType>> {
-        let article_type = article.type_;
-        let article_span = article.span;
-        debug!("parse_type: got {:?}", self.peek());
         let typedecl = self.peek();
         if typedecl.is_none() {
             return Err(CompilerError::new(
@@ -202,53 +198,63 @@ impl Parser {
                     Ok(Some(type_))
                 }
             }
-            "lijst" => Ok(Some(self.parse_array_type(article)?)),
+            "lijst" => self.try_parse_array_type(article),
             _ => Ok(None),
         }
     }
 
-    fn parse_array_type(&mut self, article: &Token) -> CompilerResult<PolderType> {
+    fn try_parse_array_type(&mut self, article: &Token) -> CompilerResult<Option<PolderType>> {
         self.expect(TokenType::Identifier)?;
         self.expect(TokenType::KWVan)?;
-
-        let mut inner_type: Option<Token>;
-
-        // TODO:
-        // If the article is indefinite, inner_type must be a valid plural type and there must be no initializer list afterward.
-        // If the article is definite, inner_type may be set as a valid plural type; in any case an initializer list is required.
         if article.type_ == TokenType::KWArticleIndef {
-            inner_type = Some(self.get_identifier().map_err(|err| {
-                err.with_help(format!(
+            let inner_type_ident = self
+            .get_identifier()
+            .map_err(|err| {
+                CompilerError::new(
+                    err.kind,
+                    format!("Verwachtte een type voor de lijst na 'een'"),
+                    err.span
+                ).with_help(
                     "Een lijst die aangemaakt wordt met een onbepaald lidwoord moet een type hebben, \
-                        en kan niet direct een waarde toegewezen krijgen. Om een waarde toe te wijzen, \
-                        gebruik 'de lijst' in plaats van 'een lijst'."
-                ))
-            })?);
-        } else {
-            inner_type = None;
-        }
+                    en kan niet direct een waarde toegewezen krijgen. Om een waarde toe te wijzen, \
+                    gebruik 'de lijst' in plaats van 'een lijst'.".to_string()
+                )
+            })?
+            .value;
+            let inner_type = match PolderType::from_pluralized(&inner_type_ident) {
+            Some(type_) => Ok(Some(PolderType::Array(Some(Box::new(type_))))),
+            None => Err(CompilerError::new(
+                ErrorCode::MismatchedType,
+                format!("Verwachtte een type voor de lijst na 'een', maar vond {}", inner_type_ident),
+                self.get_nth(0).span,
+            ).with_help(
+                "Een lijst die aangemaakt wordt met een onbepaald lidwoord moet een type hebben, \
+                en kan niet direct een waarde toegewezen krijgen. Om een waarde toe te wijzen, \
+                gebruik 'de lijst' in plaats van 'een lijst'.".to_string()
+            ))
+        }?;
 
-        if let Some(inner_type) = PolderType::from_pluralized(&inner_type.value) {
-            Ok(PolderType::Array(Some(Box::new(inner_type))))
-        } else {
-            let mut compiler_error = CompilerError::new(
-                ErrorCode::InvalidTypeDeclaration,
-                format!(
-                    "Verwachtte een type voor de lijst, maar vond '{}'",
-                    inner_type.value
-                ),
-                inner_type.span,
-            )
-            .with_span_message(format!("'{}' is geen bekend type", inner_type.value));
-
-            if PolderType::is_valid_type(&inner_type.value) {
-                compiler_error = compiler_error.with_help(format!(
-                    "Maak de lijst aan met 'lijst van {}'",
-                    PolderType::from(&inner_type.value).to_pluralized()
-                ));
+            Ok(inner_type)
+        } else if [TokenType::KWArticleDefD, TokenType::KWArticleDefH].contains(&article.type_) {
+            // If the article is definite, inner_type may be set as a valid plural type; in any case an initializer list is required.
+            let possible_inner_type = self.get_identifier();
+            if possible_inner_type.is_err() {
+                return Ok(Some(PolderType::Array(None)));
+            } else if PolderType::from_pluralized(&possible_inner_type.as_ref().unwrap().value)
+                .is_some()
+            {
+                Ok(Some(PolderType::Array(Some(Box::new(
+                    PolderType::from_pluralized(&possible_inner_type.unwrap().value).unwrap(),
+                )))))
+            } else {
+                panic!(
+                    "Found a definite article when parsing an array type, but could not match to a valid token after it"
+                )
             }
-
-            Err(compiler_error)
+        } else {
+            panic!(
+                "Tried to parse an array declaration, but got something other than an article, which we did not expect"
+            )
         }
     }
 }
