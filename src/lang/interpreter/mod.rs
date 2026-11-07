@@ -7,7 +7,6 @@ use crate::{
     io::Io,
     lang::{
         compiler::{
-            Span,
             iter::unshift::Unshift,
             parser::{
                 expression::{
@@ -24,11 +23,14 @@ use crate::{
             },
         },
         interpreter::{
-            runtime_error::{RuntimeError, RuntimeErrorKind},
+            runtime_error::{
+                RuntimeError,
+                RuntimeErrorKind,
+                RuntimeResult,
+            },
             store::Variable,
         },
     },
-    logger::PolderError,
     runtime_error,
 };
 use store::Store;
@@ -44,17 +46,31 @@ impl Interpreter {
             store: Store::new(),
         }
     }
-    pub(crate) fn run(&mut self, io: &mut Io, ast: &Vec<Statement>) -> Result<(), PolderError> {
+    pub(crate) fn run(
+        &mut self,
+        io: &mut Io,
+        ast: &Vec<Statement>,
+    ) -> Result<(), Vec<RuntimeError>> {
         let mut ast = ast.iter().peekable();
+        let mut result: Vec<RuntimeError> = vec![];
 
         while let Some(stmt) = ast.unshift() {
-            self.interpret_statement(stmt, io)?;
+            let stmt = self.interpret_statement(stmt, io);
+
+            if stmt.is_err() {
+                runtime_error::report(stmt.as_ref().unwrap_err());
+                result.push(stmt.unwrap_err())
+            }
         }
 
-        Ok(())
+        if !result.is_empty() {
+            Err(result)
+        } else {
+            Ok(())
+        }
     }
 
-    fn interpret_statement(&mut self, stmt: &Statement, io: &mut Io) -> Result<(), RuntimeError> {
+    fn interpret_statement(&mut self, stmt: &Statement, io: &mut Io) -> RuntimeResult {
         match stmt {
             Statement::VariableDeclaration(declaration) => {
                 self.interpret_variable_declaration(declaration)
@@ -77,7 +93,7 @@ impl Interpreter {
     fn interpret_variable_declaration(
         &mut self,
         declaration: &VariableDeclarationStatement,
-    ) -> Result<(), RuntimeError> {
+    ) -> RuntimeResult {
         let (store_value, expression_type) = match &declaration.initializer {
             Some(expr) => {
                 let expr_result = self.interpret_expression(expr)?;
@@ -104,63 +120,50 @@ impl Interpreter {
     fn interpret_variable_assignment(
         &mut self,
         assignment: &VariableAssignmentStatement,
-    ) -> Result<(), RuntimeError> {
+    ) -> RuntimeResult {
         let literal = self.interpret_expression(&assignment.expression)?;
-        self.store.write(
-            &assignment.identifier.value,
-            (literal, assignment.expression.span),
-            assignment.expression.span,
-        )?;
+        self.store.write(&assignment.identifier.value, literal)?;
         Ok(())
     }
 
-    fn interpret_expression(&self, expression: &Expression) -> Result<Literal, RuntimeError> {
+    fn interpret_expression(&self, expression: &Expression) -> RuntimeResult<Literal> {
         match &expression.expression {
             ExpressionType::Literal(lit) => Ok(lit.clone()),
             ExpressionType::Unary(un) => self.interpret_unary_expression(un),
-            ExpressionType::Binary(bin) => self.interpret_binary_expression(bin, expression.span),
+            ExpressionType::Binary(bin) => self.interpret_binary_expression(bin),
             ExpressionType::Identifier(ident) => {
                 Ok(self.store.get(&ident.value).value.clone().unwrap())
             }
             ExpressionType::ArrayDecl(arr) => self.interpret_array(arr),
-            ExpressionType::MethodCall(method) => {
-                self.interpret_method_call(method, expression.span)
-            }
+            ExpressionType::MethodCall(method) => self.interpret_method_call(method),
         }
     }
 
-    fn interpret_unary_expression(
-        &self,
-        expression: &UnaryExpression,
-    ) -> Result<Literal, RuntimeError> {
+    fn interpret_unary_expression(&self, expression: &UnaryExpression) -> RuntimeResult<Literal> {
         let store_value = self.interpret_expression(&expression.expr)?;
 
         match expression.op {
             UnaryOp::Increment => {
-                self.check_numeric(&store_value, &expression.expr)?;
+                self.check_numeric(&store_value)?;
                 Ok(store_value + Literal::Integer(1))
             }
             UnaryOp::Decrement => {
-                self.check_numeric(&store_value, &expression.expr)?;
+                self.check_numeric(&store_value)?;
                 Ok(store_value - Literal::Integer(1))
             }
             UnaryOp::Negation => Ok(!store_value),
         }
     }
 
-    fn interpret_binary_expression(
-        &self,
-        expression: &BinaryExpression,
-        span: Span,
-    ) -> Result<Literal, RuntimeError> {
+    fn interpret_binary_expression(&self, expression: &BinaryExpression) -> RuntimeResult<Literal> {
         let lhs = self.interpret_expression(&expression.lhs)?;
         let rhs = self.interpret_expression(&expression.rhs)?;
 
         if expression.op == BinaryOp::Equal {
-            return self.interpret_equality_expression(lhs, rhs, span);
+            return self.interpret_equality_expression(lhs, rhs);
         }
-        self.check_numeric(&lhs, &expression.lhs)?;
-        self.check_numeric(&rhs, &expression.rhs)?;
+        self.check_numeric(&lhs)?;
+        self.check_numeric(&rhs)?;
 
         Ok(match expression.op {
             BinaryOp::Add => Ok(lhs + rhs),
@@ -172,10 +175,7 @@ impl Interpreter {
                     Literal::Float(flt) => flt == 0f64,
                     _ => unreachable!(),
                 } {
-                    Err(runtime_error!(
-                        expression.rhs.span,
-                        RuntimeErrorKind::DivideByZero
-                    ))
+                    Err(runtime_error!(DivideByZero))
                 } else {
                     Ok(lhs / rhs)
                 }
@@ -187,12 +187,7 @@ impl Interpreter {
         }?)
     }
 
-    fn interpret_equality_expression(
-        &self,
-        lhs: Literal,
-        rhs: Literal,
-        span: Span,
-    ) -> Result<Literal, RuntimeError> {
+    fn interpret_equality_expression(&self, lhs: Literal, rhs: Literal) -> RuntimeResult<Literal> {
         Ok(match lhs {
             Literal::Vec(lhs) => match rhs {
                 Literal::Vec(rhs) => {
@@ -215,9 +210,7 @@ impl Interpreter {
                     Ok(Literal::Boolean(true))
                 }
                 rhs => Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::InvalidComparison,
-                    "".to_string(),
+                    InvalidComparison,
                     format!(
                         "Incompatibele types aan de linker- en rechterkant van de vergelijking ({}, {})",
                         lhs.get(0).unwrap().get_type(),
@@ -227,9 +220,7 @@ impl Interpreter {
             },
             lhs => match rhs {
                 Literal::Vec(_) => Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::InvalidComparison,
-                    "".to_string(),
+                    InvalidComparison,
                     format!(
                         "Incompatibele types aan de linker- en rechterkant van de vergelijking ({}, {})",
                         lhs.get_type(),
@@ -245,7 +236,7 @@ impl Interpreter {
         &mut self,
         intrinsic: &IntrinsicStatement,
         io: &mut Io,
-    ) -> Result<(), RuntimeError> {
+    ) -> RuntimeResult {
         match intrinsic.intrinsic {
             Intrinsics::Print | Intrinsics::Write => {
                 let store_value: Vec<Literal> = intrinsic
@@ -257,23 +248,16 @@ impl Interpreter {
                 intrinsic::print(store_value, intrinsic.intrinsic == Intrinsics::Print, io)
             }
             Intrinsics::Readline => {
-                let (identifier, span) = match intrinsic.args.get(0) {
+                let identifier = match intrinsic.args.get(0) {
                     Some(ref expr) => match expr.expression {
-                        ExpressionType::Identifier(ref ident) => Ok((ident.clone(), expr.span)),
-                        ref other => Err(runtime_error!(
-                            expr.span,
-                            RuntimeErrorKind::MismatchedType,
-                            other
-                        )),
+                        ExpressionType::Identifier(ref ident) => Ok(ident.clone()),
+                        ref other => Err(runtime_error!(MismatchedType, other)),
                     },
-                    None => Err(runtime_error!(
-                        intrinsic.span,
-                        RuntimeErrorKind::NoArgumentsProvided
-                    )),
+                    None => Err(runtime_error!(NoArgumentsProvided)),
                 }?;
 
-                let value = intrinsic::readline(span, io)?;
-                self.store.write_input(identifier.value, value, span)?;
+                let value = intrinsic::readline(io)?;
+                self.store.write_input(identifier.value, value)?;
                 Ok(())
             }
         }
@@ -282,8 +266,7 @@ impl Interpreter {
     fn interpret_method_call(
         &self,
         method_call_expression: &MethodCallExpression,
-        span: Span,
-    ) -> Result<Literal, RuntimeError> {
+    ) -> RuntimeResult<Literal> {
         match &method_call_expression.class.expression {
             ExpressionType::Identifier(identifier) => {
                 let mut arguments = Vec::new();
@@ -297,16 +280,13 @@ impl Interpreter {
                     &identifier.value,
                     &method_call_expression.method_name,
                     arguments,
-                    span,
                 )
             }
             ExpressionType::Literal(literal) => {
                 todo!("Interpret method call for literal {}", literal)
             }
             expression_type => Err(runtime_error!(
-                span,
-                RuntimeErrorKind::UnsupportedFunction,
-                expression_type,
+                UnsupportedFunction,
                 format!(
                     "Methode aanroepen op een {} is niet mogelijk",
                     expression_type
@@ -315,7 +295,7 @@ impl Interpreter {
         }
     }
 
-    fn interpret_array(&self, array: &Vec<Expression>) -> Result<Literal, RuntimeError> {
+    fn interpret_array(&self, array: &Vec<Expression>) -> RuntimeResult<Literal> {
         let mut result = Vec::new();
         for expression in array {
             result.push(self.interpret_expression(expression)?)
@@ -324,11 +304,7 @@ impl Interpreter {
         Ok(Literal::Vec(result))
     }
 
-    fn interpret_if_statement(
-        &mut self,
-        statement: &IfStatement,
-        io: &mut Io,
-    ) -> Result<(), RuntimeError> {
+    fn interpret_if_statement(&mut self, statement: &IfStatement, io: &mut Io) -> RuntimeResult {
         let condition = self.interpret_expression(&statement.predicate)?;
 
         if self.is_truthy(&condition) {
@@ -354,7 +330,7 @@ impl Interpreter {
         &mut self,
         statement: &WhileStatement,
         io: &mut Io,
-    ) -> Result<(), RuntimeError> {
+    ) -> RuntimeResult {
         let mut condition = self.interpret_expression(&statement.predicate)?;
 
         self.store.up_scope();
@@ -382,14 +358,12 @@ impl Interpreter {
         }
     }
 
-    fn check_numeric(&self, store_value: &Literal, expr: &Expression) -> Result<(), RuntimeError> {
+    fn check_numeric(&self, store_value: &Literal) -> RuntimeResult {
         if [PolderType::Integer, PolderType::Float].contains(&(store_value).into()) {
             Ok(())
         } else {
             Err(runtime_error!(
-                expr.span,
-                RuntimeErrorKind::CannotCalculateNonNumeric,
-                format!(""),
+                CannotCalculateNonNumeric,
                 format!("Waarde '{}' is een {}", store_value, store_value.get_type())
             ))
         }
@@ -399,7 +373,7 @@ impl Interpreter {
         &mut self,
         foreach_statement: &ForeachStatement,
         io: &mut Io<'_>,
-    ) -> Result<(), RuntimeError> {
+    ) -> RuntimeResult {
         let variable = self.store.get(foreach_statement.list_name.as_str()).clone();
 
         match variable.type_ {
@@ -407,8 +381,7 @@ impl Interpreter {
                 let store_value = match variable.get_value() {
                     Some(value) => Ok(value),
                     None => Err(runtime_error!(
-                        foreach_statement.span,
-                        RuntimeErrorKind::VariableHasNoValue,
+                        VariableHasNoValue,
                         format!(
                             "Kan geen 'voor elke' lus uitvoeren voor een ongeïnitialiseerde variabele"
                         )
@@ -451,9 +424,7 @@ impl Interpreter {
                 Ok(())
             }
             _ => Err(runtime_error!(
-                foreach_statement.span,
-                RuntimeErrorKind::MismatchedType,
-                foreach_statement.list_name,
+                MismatchedType,
                 format!("'Voor elke' is niet geldig voor een {}", variable.type_)
             )),
         }

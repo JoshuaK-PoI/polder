@@ -2,10 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     lang::{
-        compiler::{
-            Span,
-            parser::{expression::literal::Literal, types::PolderType},
-        },
+        compiler::parser::{expression::literal::Literal, types::PolderType},
         interpreter::runtime_error::{RuntimeError, RuntimeErrorKind},
     },
     runtime_error,
@@ -68,21 +65,16 @@ impl Store {
     pub(crate) fn write(
         &mut self,
         identifier: &String,
-        value: (Literal, Span),
-        range: Span,
+        value: Literal,
     ) -> Result<(), RuntimeError> {
         let (_variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
-            None => Err(runtime_error!(
-                range,
-                RuntimeErrorKind::UndefinedVariable,
-                identifier
-            )),
+            None => Err(runtime_error!(UndefinedVariable, identifier)),
         }?;
 
         self.variables.entry(scope).and_modify(|m| {
             m.entry(identifier.clone())
-                .and_modify(|variable| variable.value = Some(value.0.clone()));
+                .and_modify(|variable| variable.value = Some(value.clone()));
         });
 
         Ok(())
@@ -91,15 +83,10 @@ impl Store {
         &mut self,
         identifier: String,
         input: String,
-        range: Span,
     ) -> Result<(), RuntimeError> {
         let (_variable, scope) = match self.search_scopes(&identifier, &self.scope) {
             Some(v) => Ok(v),
-            None => Err(runtime_error!(
-                range,
-                RuntimeErrorKind::UndefinedVariable,
-                identifier
-            )),
+            None => Err(runtime_error!(UndefinedVariable, identifier)),
         }?;
 
         let store_value = self.try_marshalling_type(&identifier, input)?;
@@ -156,24 +143,19 @@ fn try_bool(input: String) -> Result<Literal, RuntimeError> {
         "waar" => Ok(Literal::Boolean(true)),
         "onwaar" => Ok(Literal::Boolean(false)),
         _ => Err(runtime_error!(
-            (0, 0),
-            RuntimeErrorKind::MismatchedType,
-            input,
+            MismatchedType,
             String::from("Verwachtte 'waar' of 'onwaar' hier")
         )),
     }
 }
 
 // @TODO: Deduplicate this code in future, has overlap with lexer
-// @TODO: Runtime errors below should not point to source file in the below cases because they are coming from stdin
 // @TODO: Runtime errors below should not abort the program but read from stdin again
 fn try_integer(input: String) -> Result<Literal, RuntimeError> {
     match input.parse::<i64>() {
         Ok(int) => Ok(Literal::Integer(int)),
         Err(_) => Err(runtime_error!(
-            (0, 0),
-            RuntimeErrorKind::MismatchedType,
-            input,
+            MismatchedType,
             String::from("Verwachtte een getal hier")
         )),
     }
@@ -183,9 +165,7 @@ fn try_float(input: String) -> Result<Literal, RuntimeError> {
     match input.replace(',', ".").parse::<f64>() {
         Ok(flt) => Ok(Literal::Float(flt)),
         Err(_) => Err(runtime_error!(
-            (0, 0),
-            RuntimeErrorKind::MismatchedType,
-            input,
+            MismatchedType,
             String::from("Ongeldig karakter in het kommagetal")
         )),
     }
@@ -195,9 +175,7 @@ fn try_char(input: String) -> Result<Literal, RuntimeError> {
     match input.parse::<char>() {
         Ok(c) => Ok(Literal::Char(c)),
         Err(_) => Err(runtime_error!(
-            (0, 0),
-            RuntimeErrorKind::MismatchedType,
-            input,
+            MismatchedType,
             String::from("Verwachtte een enkel karakter hier")
         )),
     }

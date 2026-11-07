@@ -1,9 +1,8 @@
 use clap::Parser;
 
-#[derive(Parser, Debug)]
-#[command(name = "polder")]
+#[derive(Parser)]
+#[command(version, about, long_about = None, name = "polder")]
 pub(crate) struct Args {
-    #[arg(short, long)]
     pub(crate) input: String,
     #[arg(short = 'd', long, required = false)]
     pub(crate) debug: bool,

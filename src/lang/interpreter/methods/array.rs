@@ -12,7 +12,6 @@ use crate::{
 pub(crate) fn length(
     variable: &Variable,
     variable_identifier: &String,
-    span: Span,
 ) -> Result<Literal, RuntimeError> {
     match variable.get_value() {
         Some(Literal::Vec(arr)) => Ok(Literal::Integer(arr.len().try_into().unwrap())),
@@ -20,9 +19,8 @@ pub(crate) fn length(
             todo!("Implement internal function 'lengte' for {}", store_value)
         }
         None => Err(runtime_error!(
-            span,
-            RuntimeErrorKind::VariableHasNoValue,
-            variable_identifier
+            VariableHasNoValue,
+            format!("{} heeft geen waarde", variable_identifier)
         )),
     }
 }
@@ -30,7 +28,6 @@ pub(crate) fn length(
 pub(super) fn push(
     variable: &Variable,
     arguments: Vec<(Literal, Span)>,
-    span: Span,
 ) -> Result<Literal, RuntimeError> {
     match variable.get_value() {
         Some(Literal::Vec(arr)) => Ok({
@@ -62,9 +59,7 @@ pub(super) fn push(
             Ok(Literal::Vec(vec))
         }
         Some(lit) => Err(runtime_error!(
-            span,
-            RuntimeErrorKind::UnsupportedFunction,
-            lit,
+            UnsupportedFunction,
             format!("Kan {} niet toevoegen aan een {}", lit, variable.type_)
         )),
     }
@@ -74,7 +69,6 @@ pub(super) fn get(
     variable: &Variable,
     variable_identifier: &String,
     arguments: Vec<(Literal, Span)>,
-    span: Span,
 ) -> Result<Literal, RuntimeError> {
     let arr = match variable.value {
         Some(ref value) => match value {
@@ -88,16 +82,12 @@ pub(super) fn get(
         Some(store_value) => match store_value.0 {
             Literal::Integer(int) => Ok(int),
             _ => Err(runtime_error!(
-                span,
-                RuntimeErrorKind::InvalidArgument,
-                variable_identifier,
+                InvalidArgument,
                 format!("Kan alleen indexeren met een getal")
             )),
         },
         None => Err(runtime_error!(
-            span,
-            RuntimeErrorKind::NoArgumentsProvided,
-            variable_identifier,
+            NoArgumentsProvided,
             format!(
                 "Verwachtte een argument om {} mee te indexeren",
                 variable_identifier
@@ -107,9 +97,7 @@ pub(super) fn get(
 
     if index < 0 {
         return Err(runtime_error!(
-            span,
-            RuntimeErrorKind::InvalidArgument,
-            variable_identifier,
+            InvalidArgument,
             format!(
                 "{} kan niet geindexeerd worden met een negatief getal",
                 variable_identifier
@@ -120,9 +108,7 @@ pub(super) fn get(
     match arr.get(index as usize) {
         Some(value) => Ok(value.to_owned()),
         None => Err(runtime_error!(
-            span,
-            RuntimeErrorKind::VariableHasNoValue,
-            variable_identifier,
+            VariableHasNoValue,
             format!(
                 "{} heeft geen waarde op plek {}",
                 variable_identifier, index

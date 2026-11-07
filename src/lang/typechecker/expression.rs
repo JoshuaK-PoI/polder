@@ -1,15 +1,18 @@
-use crate::lang::{
-    compiler::{
-        CompilerError, CompilerResult, ErrorCode,
-        lexer::token::Token,
-        parser::{
-            expression::{
-                BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
+use crate::{
+    compiler_error,
+    lang::{
+        compiler::{
+            CompilerError, CompilerResult, ErrorCode,
+            lexer::token::Token,
+            parser::{
+                expression::{
+                    BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
+                },
+                types::PolderType,
             },
-            types::PolderType,
         },
+        typechecker::{Typecheck, Typechecker},
     },
-    typechecker::{Typecheck, Typechecker},
 };
 
 impl Typecheck for Expression {
@@ -38,20 +41,18 @@ impl Expression {
     ) -> CompilerResult<PolderType> {
         if let Some(var) = typechecker.find_identifier(&identifier.value) {
             if !var.initialized {
-                return Err(CompilerError::new(
-                    ErrorCode::UninitializedVariable,
-                    format!("{} heeft nog geen waarde", identifier.value),
-                    identifier.span,
-                ));
+                return compiler_error!(
+                    UninitializedVariable @ identifier.span =>
+                    format!("{} heeft nog geen waarde", identifier.value)
+                );
             }
 
             Ok(var.type_.clone())
         } else {
-            Err(CompilerError::new(
-                ErrorCode::UndefinedVariable,
-                format!("{} bestaat niet", identifier.value),
-                self.span,
-            ))
+            compiler_error!(
+                UndefinedVariable @ self.span =>
+                format!("`{}` is niet gedefinieerd.", identifier.value)
+            )
         }
     }
 
@@ -72,16 +73,12 @@ impl Expression {
         let rhs = binary.rhs.typecheck(typechecker)?;
 
         if lhs != rhs {
-            return Err(CompilerError::new(
-                ErrorCode::MismatchedType,
-                format!("De linker- en rechterkant van deze expressie hebben verschillende types"),
-                binary.lhs.span,
-            )
-            .with_span_message(format!("Deze kant resulteert in een {}", lhs))
-            .with_info(
-                binary.rhs.span,
-                format!("Deze kant resulteert in een {}", rhs),
-            ));
+            return compiler_error!(
+                MismatchedType @ binary.lhs.span =>
+                format!("De linker- en rechterkant van deze expressie hebben verschillende types");
+                span_message: format!("Deze kant resulteert in een {}", lhs);
+                @ binary.rhs.span => format!("Deze kant resulteert in een {}", rhs)
+            );
         }
 
         Ok(lhs)
@@ -98,11 +95,10 @@ impl Expression {
             match initialized_type {
                 Some(ref initialized_type) => {
                     if initialized_type != &type_ {
-                        return Err(CompilerError::new(
-                            ErrorCode::MismatchedType,
-                            format!("Niet alle expressies in de lijst hebben hetzelfde type"),
-                            expr.span
-                        ).with_span_message(format!("Verwachtte een expressie die resulteert in een {}, maar deze expressie resulteert in een {}", initialized_type, type_)));
+                        return compiler_error!(MismatchedType @ expr.span =>
+                            format!("Niet alle expressies in de lijst hebben hetzelfde type");
+                            span_message: format!("Verwachtte een expressie die resulteert in een {}, maar deze expressie resulteert in een {}", initialized_type, type_)
+                        );
                     }
                 }
                 None => initialized_type = Some(type_),

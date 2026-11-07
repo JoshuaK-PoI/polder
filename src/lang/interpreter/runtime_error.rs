@@ -1,62 +1,34 @@
-use crate::{lang::compiler::Span, logger::PolderError};
-
 #[macro_export]
 macro_rules! runtime_error {
-    ($span: expr, $kind:expr, $message:expr, $formatter:expr) => {
+    ($kind:ident, $message:expr) => {
         RuntimeError {
-            message: format!("{} {}", $message, String::from($kind))
-                .trim()
-                .to_string(),
-            span_message: $formatter,
-            span: $span,
+            kind: RuntimeErrorKind::$kind,
+            message: format!("{}", $message).trim().to_string(),
         }
     };
 
-    ($span: expr, $kind:expr, $message:expr) => {
+    ($kind:ident) => {
         RuntimeError {
-            message: format!("{} {}", $message, String::from($kind))
-                .trim()
-                .to_string(),
-            span_message: format!("{} {}", $message, String::from($kind))
-                .trim()
-                .to_string(),
-            span: $span,
-        }
-    };
-
-    ($span: expr, $kind:expr) => {
-        RuntimeError {
-            message: format!("{}", String::from($kind)).trim().to_string(),
-            span_message: format!("{}", String::from($kind)).trim().to_string(),
-            span: $span,
+            kind: RuntimeErrorKind::$kind,
+            message: String::from(RuntimeErrorKind::$kind),
         }
     };
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct RuntimeError {
+    #[allow(dead_code)]
+    pub(crate) kind: RuntimeErrorKind,
     pub(crate) message: String,
-    pub(crate) span_message: String,
-    pub(crate) span: Span,
-}
-
-impl From<RuntimeError> for PolderError {
-    fn from(value: RuntimeError) -> Self {
-        PolderError {
-            message: value.message,
-            span_message: value.span_message,
-            span: value.span,
-            help_message: None,
-            infos: Vec::new(),
-        }
-    }
 }
 
 impl From<std::io::Error> for RuntimeError {
     fn from(value: std::io::Error) -> Self {
-        runtime_error!((0, 0), RuntimeErrorKind::IOError, value)
+        runtime_error!(IOError, value)
     }
 }
+
+#[derive(Debug, Clone)]
 pub(crate) enum RuntimeErrorKind {
     UndefinedVariable,
     VariableHasNoValue,
@@ -72,23 +44,16 @@ pub(crate) enum RuntimeErrorKind {
 }
 
 impl From<RuntimeErrorKind> for String {
-    fn from(kind: RuntimeErrorKind) -> String {
-        match kind {
-            RuntimeErrorKind::UndefinedVariable => "bestaat niet".to_string(),
-            RuntimeErrorKind::VariableHasNoValue => "heeft nog geen waarde".to_string(),
-            RuntimeErrorKind::MismatchedType => "Verkeerd type".to_string(),
-            RuntimeErrorKind::NoArgumentsProvided => "Geen argumenten gespecificeerd".to_string(),
-            RuntimeErrorKind::InvalidArgument => "Ongeldig argument".to_string(),
-            RuntimeErrorKind::NoInputGiven => "Geef een waarde op".to_string(),
-            RuntimeErrorKind::InvalidComparison => {
-                "Kan geen vergelijking tussen verschillende types uitvoeren".to_string()
-            }
-            RuntimeErrorKind::DivideByZero => "Kan niet door nul delen".to_string(),
-            RuntimeErrorKind::CannotCalculateNonNumeric => {
-                "Rekenen kan alleen met getallen of kommagetallen".to_string()
-            }
-            RuntimeErrorKind::UnsupportedFunction => "Functie (nog) niet ondersteund".to_string(),
-            RuntimeErrorKind::IOError => "I/O Error".to_string(),
+    fn from(value: RuntimeErrorKind) -> Self {
+        match value {
+            RuntimeErrorKind::DivideByZero => format!("Kan niet door 0 delen."),
+            _ => format!("{:?}", value),
         }
     }
 }
+
+pub(super) fn report(runtime_error: &RuntimeError) -> () {
+    eprintln!("{}", runtime_error.message);
+}
+
+pub(super) type RuntimeResult<T = ()> = Result<T, RuntimeError>;

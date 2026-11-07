@@ -68,6 +68,9 @@ impl PolderType {
         }
     }
 
+    /**
+     * Get the associated article ('de' / 'het') for the current type.
+     */
     pub(crate) fn article(&self) -> TokenType {
         match self {
             PolderType::Boolean | PolderType::Char | PolderType::String | PolderType::Array(_) => {

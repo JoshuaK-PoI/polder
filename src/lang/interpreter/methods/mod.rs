@@ -20,17 +20,14 @@ pub(crate) fn call_method(
     variable_identifier: &String,
     method: &String,
     arguments: Vec<(Literal, Span)>,
-    span: Span,
 ) -> Result<Literal, RuntimeError> {
     match &variable.type_ {
         PolderType::Array(_) => match method.as_str() {
-            "lengte" => array::length(variable, variable_identifier, span),
-            "Voeg toe" => array::push(variable, arguments, span),
-            "element" => array::get(variable, variable_identifier, arguments, span),
+            "lengte" => array::length(variable, variable_identifier),
+            "Voeg toe" => array::push(variable, arguments),
+            "element" => array::get(variable, variable_identifier, arguments),
             fun => Err(runtime_error!(
-                span,
-                RuntimeErrorKind::UnsupportedFunction,
-                fun,
+                UnsupportedFunction,
                 format!(
                     "Methode '{}' is geen functie voor een {}",
                     fun, variable.type_
@@ -38,12 +35,10 @@ pub(crate) fn call_method(
             )),
         },
         PolderType::String => match method.as_str() {
-            "Voeg toe" => string::push(variable, variable_identifier, arguments, span),
-            "element" => string::get(variable, variable_identifier, arguments, span),
+            "Voeg toe" => string::push(variable, arguments),
+            "element" => string::get(variable, variable_identifier, arguments),
             fun => Err(runtime_error!(
-                span,
-                RuntimeErrorKind::UnsupportedFunction,
-                fun,
+                UnsupportedFunction,
                 format!(
                     "Methode '{}' is geen functie voor een {}",
                     fun, variable.type_

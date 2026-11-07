@@ -18,7 +18,6 @@ pub(crate) type Span = (usize, usize);
 
 #[derive(Debug)]
 pub(crate) struct CompilerError {
-    #[allow(dead_code)]
     pub(crate) kind: ErrorCode,
     pub(crate) message: String,
     pub(crate) span_message: Option<String>,
@@ -27,8 +26,45 @@ pub(crate) struct CompilerError {
     pub(crate) infos: Vec<Info>,
 }
 
+#[macro_export]
+macro_rules! compiler_error {
+    ($kind:ident @ $span:expr => $message:expr) => {
+        Err(CompilerError {
+            kind: ErrorCode::$kind,
+            message: $message,
+            span: $span,
+            span_message: None,
+            help: None,
+            infos: Vec::new(),
+        })
+    };
+
+    ($kind:ident @ $span:expr => $message:expr
+        $(; span_message: $span_message:expr)?
+        $(; @ $span_info:expr => $message_info:expr),*
+        $(; help: $message_help:expr)?
+    ) => {
+        {
+            let mut c = CompilerError {
+                kind: ErrorCode::$kind,
+                message: $message,
+                span: $span,
+                span_message: None,
+                help: None,
+                infos: Vec::new(),
+            };
+
+            $(c = c.with_span_message($span_message);)?
+            $(c = c.with_info($span_info, $message_info);)*
+            $(c = c.with_help($message_help);)?
+
+            Err(c)
+        }
+    };
+}
+
 impl CompilerError {
-    pub(crate) fn new(kind: ErrorCode, message: String, span: Span) -> Self {
+    fn new(kind: ErrorCode, message: String, span: Span) -> Self {
         CompilerError {
             kind,
             message,

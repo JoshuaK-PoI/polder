@@ -74,9 +74,12 @@ fn main() {
         });
     }
 
-    Interpreter::new()
-        .run(&mut io, &mut ast)
-        .unwrap_or_else(|err| error_logger.report(&err));
+    let result = Interpreter::new().run(&mut io, &mut ast);
+    if result.is_err() {
+        exit(1);
+    }
+
+    exit(0);
 }
 
 #[cfg(test)]
@@ -251,7 +254,9 @@ mod tests {
 
             Interpreter::new()
                 .run(&mut io, &mut ast.unwrap())
-                .map_err(|e| assert!(check_error(e, &path, &mut report)))
+                .map_err(|_| {
+                    assert!(false, "Runtime error checking is currently not supported")
+                })
                 .expect_err(
                     format!(
                         "Expected failure on {}, but passed",

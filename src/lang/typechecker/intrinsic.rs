@@ -1,13 +1,16 @@
-use crate::lang::{
-    compiler::{
-        CompilerError, CompilerResult, ErrorCode,
-        parser::{
-            expression::ExpressionType,
-            intrinsic::Intrinsics,
-            statement::{IntrinsicStatement, Statement},
+use crate::{
+    compiler_error,
+    lang::{
+        compiler::{
+            CompilerError, CompilerResult, ErrorCode,
+            parser::{
+                expression::ExpressionType,
+                intrinsic::Intrinsics,
+                statement::{IntrinsicStatement, Statement},
+            },
         },
+        typechecker::{Typecheck, Typechecker},
     },
-    typechecker::{Typecheck, Typechecker},
 };
 
 impl Statement {
@@ -41,22 +44,16 @@ impl Statement {
         typechecker: &mut Typechecker,
     ) -> CompilerResult<()> {
         let identifier = match intrinsic.args.get(0) {
-            None => Err(CompilerError::new(
-                ErrorCode::InvalidStatement,
-                format!(
-                    "Verwachtte een variabelenaam om de waarde in in te lezen, maar vond niets."
-                ),
-                intrinsic.span,
-            )),
+            None => compiler_error!(
+                InvalidStatement @ intrinsic.span =>
+                format!("Verwachtte een variabelenaam om de waarde in in te lezen, maar vond niets.")
+            ),
             Some(arg) => match &arg.expression {
                 ExpressionType::Identifier(ident) => Ok(ident),
-                _ => Err(CompilerError::new(
-                    ErrorCode::InvalidStatement,
-                    format!(
-                        "Een waarde kan alleen ingelezen worden in een variabele. Deze expressie is niet geldig hier."
-                    ),
-                    arg.span,
-                )),
+                _ => compiler_error!(
+                    InvalidStatement @ arg.span =>
+                    format!("Een waarde kan alleen ingelezen worden in een variabele. Deze expressie is niet geldig hier.")
+                ),
             },
         }?;
 
@@ -68,13 +65,13 @@ impl Statement {
             ),
         };
 
-        if var.is_const {
-            return Err(CompilerError::new(
-                ErrorCode::ConstVariable,
-                format!("Het is niet mogelijk om in een constante waarde in te lezen."),
-                identifier.span
-            ).with_info(var.loc, format!("{} was hier gedefinieerd als constante.", identifier.value))
-        .with_help(format!("Verwijder `voorgoed` uit de declaratie van de variabele om hierin in te kunnen lezen.")));
+        if var.immutable {
+            return compiler_error!(
+                ConstVariable @ identifier.span =>
+                format!("Het is niet mogelijk om in een constante waarde in te lezen.");
+                @ var.declared_at => format!("{} was hier gedefinieerd als constante.", identifier.value);
+                help: format!("Verwijder `voorgoed` uit de declaratie van de variabele om hierin in te kunnen lezen.")
+            );
         }
 
         // @TODO:

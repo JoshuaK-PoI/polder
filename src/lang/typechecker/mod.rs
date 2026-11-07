@@ -4,17 +4,22 @@ mod statement;
 
 use std::collections::HashMap;
 
-use crate::lang::compiler::{
-    CompilerError, CompilerResult, ErrorCode, Span,
-    parser::{statement::Statement, types::PolderType},
+use crate::{
+    compiler_error,
+    lang::compiler::{
+        CompilerError, CompilerResult, ErrorCode, Span,
+        parser::{statement::Statement, types::PolderType},
+    },
 };
 
 pub(crate) struct Var {
-    loc: Span,
+    declared_at: Span,
+    used_at: Vec<Span>,
     type_: PolderType,
-    is_const: bool,
+    declared: bool,
     initialized: bool,
     modified: bool,
+    immutable: bool,
 }
 
 pub struct Typechecker {
@@ -27,33 +32,34 @@ impl Typechecker {
         identifier: String,
         span: Span,
         type_: PolderType,
-        is_const: bool,
+        immutable: bool,
         initialized: bool,
     ) -> CompilerResult<()> {
         let scope = self
             .scopes
             .last_mut()
             .expect("Expected at least one scope; something destroyed the global scope");
+
         if let Some(var) = scope.get(&identifier) {
-            Err(CompilerError::new(
-                ErrorCode::RedefinitionOfVariable,
-                format!("{} bestaat al", identifier),
-                span,
-            )
-            .with_info(var.loc, format!("{} hier gedefinieerd", identifier)))
-        } else {
-            scope.insert(
-                identifier,
-                Var {
-                    loc: span,
-                    type_,
-                    is_const,
-                    initialized,
-                    modified: false,
-                },
+            return compiler_error!(
+                RedefinitionOfVariable @ span => format!("`{}` bestaat al.", identifier);
+                @ var.declared_at => format!("`{}` is hier al gedefinieerd.", identifier)
             );
-            Ok(())
         }
+
+        scope.insert(
+            identifier,
+            Var {
+                declared_at: span,
+                used_at: Vec::new(),
+                type_,
+                immutable,
+                initialized,
+                declared: true,
+                modified: false,
+            },
+        );
+        Ok(())
     }
 
     fn find_identifier(&self, identifier: &str) -> Option<&Var> {

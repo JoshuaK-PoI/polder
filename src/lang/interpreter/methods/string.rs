@@ -2,19 +2,14 @@ use crate::{
     lang::{
         compiler::{Span, parser::expression::literal::Literal},
         interpreter::{
-            runtime_error::{RuntimeError, RuntimeErrorKind},
+            runtime_error::{RuntimeError, RuntimeErrorKind, RuntimeResult},
             store::Variable,
         },
     },
     runtime_error,
 };
 
-pub(super) fn push(
-    variable: &Variable,
-    variable_identifier: &String,
-    arguments: Vec<(Literal, Span)>,
-    span: Span,
-) -> Result<Literal, RuntimeError> {
+pub(super) fn push(variable: &Variable, arguments: Vec<(Literal, Span)>) -> RuntimeResult<Literal> {
     match &variable.value {
         Some(Literal::String(str)) => {
             let arg = arguments
@@ -22,9 +17,7 @@ pub(super) fn push(
                 .map(|a| a.0.clone())
                 .map(|s| match s {
                     Literal::Vec(arr) => Err(runtime_error!(
-                        span,
-                        RuntimeErrorKind::MismatchedType,
-                        variable_identifier,
+                        MismatchedType,
                         format!(
                             "Kan geen lijst van {} toevoegen aan een tekst",
                             if let Some(v) = arr.get(0) {
@@ -40,18 +33,16 @@ pub(super) fn push(
                     Ok(Literal::Char(c)) => Ok(c.to_string()),
                     Ok(Literal::String(s)) => Ok(s),
                     Ok(lit) => Err(runtime_error!(
-                        span,
-                        RuntimeErrorKind::MismatchedType,
-                        variable_identifier,
+                        MismatchedType,
                         format!("Kan geen {} toevoegen aan een tekst", lit)
                     )),
                     Err(err) => Err(err),
                 });
 
-            let arg = arg.collect::<Vec<Result<String, RuntimeError>>>();
+            let arg = arg.collect::<Vec<RuntimeResult<String>>>();
 
             if arg.iter().any(|r| r.is_err()) {
-                return Err(arg.get(0).unwrap().as_ref().err().unwrap().clone());
+                return Err(arg.iter().find_map(|r| r.as_ref().err()).unwrap().clone());
             }
 
             let arg = arg
@@ -85,24 +76,19 @@ pub(super) fn get(
     variable: &Variable,
     variable_identifier: &String,
     arguments: Vec<(Literal, Span)>,
-    span: Span,
-) -> Result<Literal, RuntimeError> {
+) -> RuntimeResult<Literal> {
     match &variable.value {
         Some(Literal::String(str)) => {
             let index = match arguments.get(0) {
                 Some(store_value) => match store_value.0 {
                     Literal::Integer(int) => Ok(int),
                     _ => Err(runtime_error!(
-                        span,
-                        RuntimeErrorKind::InvalidArgument,
-                        variable_identifier,
+                        InvalidArgument,
                         format!("Kan alleen indexeren met een getal")
                     )),
                 },
                 None => Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::NoArgumentsProvided,
-                    variable_identifier,
+                    NoArgumentsProvided,
                     format!(
                         "Verwachtte een argument om {} mee te indexeren",
                         variable_identifier
@@ -111,9 +97,7 @@ pub(super) fn get(
             }?;
             if index < 0 {
                 return Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::InvalidArgument,
-                    variable_identifier,
+                    InvalidArgument,
                     format!(
                         "{} kan niet geindexeerd worden met een negatief getal",
                         variable_identifier
@@ -124,9 +108,7 @@ pub(super) fn get(
             match str.chars().nth(index as usize) {
                 Some(value) => Ok(Literal::Char(value.to_owned())),
                 None => Err(runtime_error!(
-                    span,
-                    RuntimeErrorKind::VariableHasNoValue,
-                    variable_identifier,
+                    VariableHasNoValue,
                     format!(
                         "{} heeft geen waarde op plek {}",
                         variable_identifier, index
@@ -134,11 +116,7 @@ pub(super) fn get(
                 )),
             }
         }
-        None => Err(runtime_error!(
-            span,
-            RuntimeErrorKind::VariableHasNoValue,
-            variable_identifier
-        )),
+        None => Err(runtime_error!(VariableHasNoValue, variable_identifier)),
         _ => unreachable!(),
     }
 }
