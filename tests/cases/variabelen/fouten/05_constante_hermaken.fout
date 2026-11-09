@@ -1,1 +1,1 @@
-{"message":"pi kan niet opnieuw worden toegewezen","span_message":"pi is voorgoed 3,14","span":[40,41]}
+{"message":"Kan constante `pi` geen nieuwe waarde toewijzen.","span_message":"Kan constante `pi` geen nieuwe waarde toewijzen.","span":[40,41],"help_message":null,"infos":[]}

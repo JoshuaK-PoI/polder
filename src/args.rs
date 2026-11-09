@@ -10,4 +10,6 @@ pub(crate) struct Args {
     pub(crate) trace: bool,
     #[arg(long, required = false)]
     pub(crate) print_ast: bool,
+    #[arg(long, required = false)]
+    pub(crate) test_interactive: bool,
 }

@@ -87,7 +87,7 @@ impl Lexer {
             Some(c) => Err(CompilerError::new(
                 ErrorCode::UnexpectedCharacter,
                 format!("Onverwacht karakter '{}'", c),
-                (self.position - 1, self.position),
+                (std::cmp::max(1, self.position) - 1, self.position),
             )),
             None => Ok(None),
         }

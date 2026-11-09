@@ -1,1 +1,1 @@
-{"message":"Verkeerd type","span_message":"x is een getal, geen tekst","span":[36,43]}
+{"message":"Een tekst kan niet toegewezen worden aan het getal `x`","span_message":"Een tekst kan niet toegewezen worden aan het getal `x`","span":[36,43],"help_message":null,"infos":[{"span":[5,6],"message":"x is hier gedefinieerd als getal"}]}

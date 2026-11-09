@@ -1,1 +1,1 @@
-{"message":"'een getal' kan geen waarde hebben","span_message":"Gebruik 'het getal' als je een waarde opgeeft.","span":[5,18]}
+{"message":"'een getal' kan geen waarde hebben","span_message":"Verwachtte hier 'zijn', maar vond 5","span":[17,18],"help_message":"Gebruik 'het getal' als je een waarde opgeeft.","infos":[]}

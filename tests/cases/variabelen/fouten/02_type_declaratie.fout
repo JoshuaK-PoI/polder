@@ -1,1 +1,1 @@
-{"message":"Een kommagetal kan niet worden toegewezen aan een getal","span_message":"Ik verwachtte hier een getal, maar pi is een kommagetal.","span":[18,22]}
+{"message":"Het type van pi is niet compatibel met het type van de initiele waarde.","span_message":"`pi` is een getal","span":[5,7],"help_message":null,"infos":[{"span":[18,22],"message":"Het resultaat van deze expressie is een kommagetal"}]}

@@ -1,1 +1,1 @@
-{"message":"Rekenen kan alleen met getallen of kommagetallen","span_message":"Waarde 'waar' is een waarheid","span":[16,20]}
+{"message":"De linker- en rechterkant van deze expressie hebben verschillende types","span_message":"Deze kant resulteert in een waarheid","span":[16,20],"help_message":null,"infos":[{"span":[24,25],"message":"Deze kant resulteert in een getal"}]}

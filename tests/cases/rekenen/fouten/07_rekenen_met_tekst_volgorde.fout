@@ -1,1 +1,1 @@
-{"message":"Rekenen kan alleen met getallen of kommagetallen","span_message":"Waarde 'hoi' is een tekst","span":[29,30]}
+{"message":"De linker- en rechterkant van deze expressie hebben verschillende types","span_message":"Deze kant resulteert in een tekst","span":[29,30],"help_message":null,"infos":[{"span":[23,24],"message":"Deze kant resulteert in een getal"}]}

@@ -1,1 +1,1 @@
-{"message":"3: Verkeerd type","span_message":"l is een lijst van teksten, 3 (van type getal) kan hier niet aan worden toegevoegd.","span":[20,33]}
+{"message":"Niet alle expressies in de lijst hebben hetzelfde type","span_message":"Verwachtte een expressie die resulteert in een tekst, maar deze expressie resulteert in een getal","span":[32,33],"help_message":null,"infos":[]}

@@ -8,6 +8,7 @@ use crate::{
                 expression::{
                     BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
                 },
+                statement::UnaryOp,
                 types::PolderType,
             },
         },
@@ -43,7 +44,7 @@ impl Expression {
             if !var.initialized {
                 return compiler_error!(
                     UninitializedVariable @ identifier.span =>
-                    format!("{} heeft nog geen waarde", identifier.value)
+                    format!("`{}` heeft nog geen waarde", identifier.value)
                 );
             }
 
@@ -61,7 +62,28 @@ impl Expression {
         unary: &UnaryExpression,
         typechecker: &mut Typechecker,
     ) -> CompilerResult<PolderType> {
-        unary.expr.typecheck(typechecker)
+        let expr_type = unary.expr.typecheck(typechecker)?;
+
+        match &unary.op {
+            UnaryOp::Decrement | UnaryOp::Increment => {
+                if ![PolderType::Integer, PolderType::Float].contains(&expr_type) {
+                    return compiler_error!(
+                        MismatchedType @ unary.expr.span => format!("Het resultaat van deze expressie is hier niet toegestaan");
+                        span_message: format!("Deze expressie resulteert in een {}, verwachtte een {} of {}", expr_type, PolderType::Integer, PolderType::Float)
+                    );
+                }
+            }
+            UnaryOp::Negation => {
+                if ![PolderType::Boolean].contains(&expr_type) {
+                    return compiler_error!(
+                        MismatchedType @ unary.expr.span => format!("Het resultaat van deze expressie is hier niet toegestaan");
+                        span_message: format!("Deze expressie resulteert in een {}, verwachtte een {}", expr_type, PolderType::Boolean)
+                    );
+                }
+            }
+        };
+
+        Ok(expr_type)
     }
 
     fn binary(
