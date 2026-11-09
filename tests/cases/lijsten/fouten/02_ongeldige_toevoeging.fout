@@ -1,1 +1,1 @@
-{"message":"2: Verkeerd type","span_message":"namen is een lijst van teksten, 2 (van type getal) kan hier niet aan worden toegevoegd.","span":[61,62]}
+{"message":"Kan deze expressie niet toevoegen","span_message":"`namen` is een lijst van teksten, maar deze expressie resulteert in een getal","span":[61,62],"help_message":null,"infos":[]}

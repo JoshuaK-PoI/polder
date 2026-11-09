@@ -79,6 +79,17 @@ impl PolderType {
             PolderType::Integer | PolderType::Float => TokenType::KWArticleDefH,
         }
     }
+
+    /**
+     * Gets the inner value from a PolderType::Array().
+     * If the given type is not an Array, or its inner type is not set, this returns None.
+     */
+    pub(crate) fn get_array_type(&self) -> Option<&PolderType> {
+        match self {
+            PolderType::Array(arr) => arr.as_deref(),
+            _ => None
+        }
+    }
 }
 
 impl From<&PolderType> for String {

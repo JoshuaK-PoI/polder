@@ -4,7 +4,10 @@ use crate::{
         compiler::{
             CompilerError, CompilerResult, ErrorCode,
             parser::{
-                statement::{Statement, VariableAssignmentStatement, VariableDeclarationStatement},
+                statement::{
+                    ForeachStatement, IfStatement, Statement, VariableAssignmentStatement,
+                    VariableDeclarationStatement, WhileStatement,
+                },
                 types::PolderType,
             },
         },
@@ -24,6 +27,9 @@ impl Typecheck for Statement {
             Statement::VariableAssignment(var_assn) => {
                 self.variable_assignment(var_assn, typechecker)
             }
+            Statement::If(if_stmt) => self.r#if(if_stmt, typechecker),
+            Statement::While(while_stmt) => self.r#while(while_stmt, typechecker),
+            Statement::Foreach(foreach_stmt) => self.foreach(foreach_stmt, typechecker),
             stmt => todo!("Statement {:?}", stmt),
         }
     }
@@ -89,7 +95,7 @@ impl Statement {
                                     @ initializer.span => format!("Het resultaat van deze expressie is een {}", initialized_type)
                                 )
                             }
-                        }?
+                        }?,
                     },
                     None => initialized_type,
                 }
@@ -160,5 +166,125 @@ impl Statement {
                 format!("{} bestaat niet", var_assn.identifier.value)
             )
         }
+    }
+
+    fn r#if(&self, if_stmt: &IfStatement, typechecker: &mut Typechecker) -> CompilerResult<()> {
+        let pred = if_stmt.predicate.typecheck(typechecker)?;
+
+        if pred != PolderType::Boolean {
+            return compiler_error!(
+                MismatchedType @ if_stmt.predicate.span => format!("Deze expressie moet een waarheid zijn");
+                span_message: format!("Een 'als' verwacht een waarheid terug te krijgen, maar deze expressie resulteert in een {}", pred)
+            );
+        }
+
+        typechecker.scope_up();
+        for stmt in &if_stmt.then_statements {
+            stmt.typecheck(typechecker)?;
+        }
+        typechecker.scope_dn();
+
+        if !if_stmt.else_statements.is_empty() {
+            typechecker.scope_up();
+            for stmt in &if_stmt.else_statements {
+                stmt.typecheck(typechecker)?;
+            }
+            typechecker.scope_dn();
+        }
+
+        Ok(())
+    }
+
+    fn r#while(
+        &self,
+        while_statement: &WhileStatement,
+        typechecker: &mut Typechecker,
+    ) -> CompilerResult<()> {
+        let pred = while_statement.predicate.typecheck(typechecker)?;
+
+        if pred != PolderType::Boolean {
+            return compiler_error!(
+                MismatchedType @ while_statement.predicate.span => format!("Deze expressie moet een waarheid zijn");
+                span_message: format!("Een 'zolang' verwacht een waarheid terug te krijgen, maar deze expressie resulteert in een {}", pred)
+            );
+        }
+
+        typechecker.scope_up();
+        for stmt in &while_statement.then_statements {
+            stmt.typecheck(typechecker)?
+        }
+        typechecker.scope_dn();
+
+        // @TODO:
+        // It would be nice to statically assert the modification of the variable in the predicate
+        // that way the compiler can somewhat confidently assert that the loop will break at some point
+        // this may prevent infinite loops
+
+        Ok(())
+    }
+
+    fn foreach(
+        &self,
+        foreach_stmt: &ForeachStatement,
+        typechecker: &mut Typechecker,
+    ) -> CompilerResult<()> {
+        let list_type = match typechecker.find_identifier(&foreach_stmt.list_name.value) {
+            Some(var) => {
+                if !var.initialized {
+                    return compiler_error!(
+                        UninitializedVariable @ foreach_stmt.list_name.span =>
+                        format!("`{}` heeft nog geen waarde", foreach_stmt.list_name.value)
+                    );
+                }
+
+                match &var.type_ {
+                    PolderType::Array(inner) => {
+                        if inner.is_none() {
+                            return compiler_error!(
+                                UninitializedVariable @ foreach_stmt.list_name.span =>
+                                format!("`{}` heeft nog geen waarde, want het lijsttype is niet gedefinieerd", foreach_stmt.list_name.value)
+                            );
+                        }
+                    }
+                    type_ => {
+                        return compiler_error!(
+                            MismatchedType @ foreach_stmt.list_name.span => format!("Een 'Voor elke'-lus kan alleen gebruikt worden met lijsten. {} is een {}", foreach_stmt.list_name.value, type_)
+                        );
+                    }
+                }
+                var.type_.clone()
+            }
+            None => {
+                return compiler_error!(
+                    UndefinedVariable @ foreach_stmt.list_name.span => format!("`{}` is niet gedefinieerd", foreach_stmt.list_name.value)
+                );
+            }
+        };
+
+        typechecker.scope_up();
+        typechecker.declare(
+            foreach_stmt.element_binding.value.clone(),
+            foreach_stmt.element_binding.span,
+            list_type.get_array_type().unwrap().clone(),
+            true,
+            true,
+        )?;
+
+        if let Some(index) = &foreach_stmt.index_binding {
+            typechecker.declare(
+                index.value.clone(),
+                index.span,
+                PolderType::Integer,
+                true,
+                true,
+            )?;
+        }
+        
+        for stmt in &foreach_stmt.statements {
+            stmt.typecheck(typechecker)?;
+        }
+        typechecker.scope_dn();
+
+        Ok(())
     }
 }

@@ -81,6 +81,14 @@ impl Typechecker {
 
         None
     }
+
+    fn scope_up(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    fn scope_dn(&mut self) {
+        self.scopes.pop();
+    }
 }
 
 trait Typecheck {

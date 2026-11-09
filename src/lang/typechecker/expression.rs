@@ -6,9 +6,10 @@ use crate::{
             lexer::token::Token,
             parser::{
                 expression::{
-                    BinaryExpression, Expression, ExpressionType, UnaryExpression, literal::Literal,
+                    BinaryExpression, Expression, ExpressionType, MethodCallExpression,
+                    UnaryExpression, literal::Literal,
                 },
-                statement::UnaryOp,
+                statement::{BinaryOp, UnaryOp},
                 types::PolderType,
             },
         },
@@ -25,7 +26,7 @@ impl Typecheck for Expression {
             ExpressionType::Binary(binary) => self.binary(binary, typechecker),
             ExpressionType::Unary(unary) => self.unary(unary, typechecker),
             ExpressionType::ArrayDecl(arr) => self.array_decl(arr, typechecker),
-            expr => unimplemented!("Typecheck expression {:?}", expr),
+            ExpressionType::MethodCall(method) => self.method_call(method, typechecker),
         }
     }
 }
@@ -103,7 +104,49 @@ impl Expression {
             );
         }
 
-        Ok(lhs)
+        let expected: &[PolderType] = match binary.op {
+            BinaryOp::Add
+            | BinaryOp::Subtract
+            | BinaryOp::Divide
+            | BinaryOp::Multiply
+            | BinaryOp::Modulo
+            | BinaryOp::Greater
+            | BinaryOp::Less => &[PolderType::Float, PolderType::Integer],
+
+            BinaryOp::Equal => &[
+                PolderType::Boolean,
+                PolderType::Char,
+                PolderType::Float,
+                PolderType::Integer,
+                PolderType::String,
+            ],
+        };
+
+        if !expected.contains(&lhs) {
+            let mut expected = expected
+                .into_iter()
+                .map(|t| t.to_string())
+                .collect::<Vec<String>>()
+                .join(",");
+
+            expected
+                .rfind(",")
+                .map(|i| expected.replace_range(i..(i + 1), "of"));
+
+            return compiler_error!(
+                MismatchedType @ binary.lhs.span => format!("Het resultaat van dit type is niet geldig hier");
+                span_message: format!("Verwachtte een {} hier, maar vond een {}", expected, lhs)
+            );
+        }
+
+        Ok(match binary.op {
+            BinaryOp::Add
+            | BinaryOp::Subtract
+            | BinaryOp::Divide
+            | BinaryOp::Multiply
+            | BinaryOp::Modulo => lhs,
+            BinaryOp::Greater | BinaryOp::Less | BinaryOp::Equal => PolderType::Boolean,
+        })
     }
 
     fn array_decl(
@@ -131,5 +174,62 @@ impl Expression {
             panic!("After array declaration, no type was set (is the array empty?)");
         }
         Ok(PolderType::Array(Some(Box::new(initialized_type.unwrap()))))
+    }
+
+    fn method_call(
+        &self,
+        method: &MethodCallExpression,
+        typechecker: &mut Typechecker,
+    ) -> CompilerResult<PolderType> {
+        let ident = match &method.class.expression {
+            ExpressionType::Identifier(ident) => Ok(ident),
+            expr => compiler_error!(
+                InvalidExpression @ method.class.span => format!("Verwachtte hier een identificatie, maar vond een {}.", expr)
+            ),
+        }?;
+        
+        let class_type = if let Some(var) = typechecker.find_identifier_mut(&ident.value) {
+            if method.method_name == "Voeg toe".to_string() {
+                var.initialized = true;
+            }
+            Ok(var.type_.clone())
+        } else {
+            compiler_error!(
+                UndefinedVariable @ method.class.span => format!("`{}` bestaat niet.", ident.value)
+            )
+        }?;
+
+        if method.method_name == "Voeg toe" {
+            for arg in &method.arguments {
+                let type_ = arg.typecheck(typechecker)?;
+                let atype = match &type_ {
+                    PolderType::Array(Some(inner)) => inner,
+                    typ => typ
+                };
+                
+                let ctype = match &class_type {
+                    PolderType::Array(Some(inner)) => inner,
+                    typ => typ
+                };
+
+                if atype != ctype {
+                    return compiler_error!(
+                        MismatchedType @ arg.span => format!("Kan deze expressie niet toevoegen");
+                        span_message: format!("`{}` is een {}, maar deze expressie resulteert in een {}", ident.value, class_type, type_)
+                    )
+                }
+
+            }
+        }
+
+        for arg in &method.arguments {
+            arg.typecheck(typechecker)?;
+        }
+
+        // @TODO: Because methods are loosely defined and we don't support user functions yet,
+        // there is not a lot to typecheck on them right now
+        // When we implement functions we can add stricter type checking to make sure the arguments and
+        // return type are correct, but for the current builtin methods this is not needed
+        Ok(class_type)
     }
 }

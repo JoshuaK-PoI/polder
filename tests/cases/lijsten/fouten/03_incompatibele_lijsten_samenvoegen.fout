@@ -1,1 +1,1 @@
-{"message":"4: Verkeerd type","span_message":"gasten is een lijst van teksten, 4 (van type getal) kan hier niet aan worden toegevoegd.","span":[128,135]}
+{"message":"Kan deze expressie niet toevoegen","span_message":"`gasten` is een lijst van teksten, maar deze expressie resulteert in een lijst van getallen","span":[128,135],"help_message":null,"infos":[]}

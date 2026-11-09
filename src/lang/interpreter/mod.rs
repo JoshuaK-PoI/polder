@@ -374,7 +374,7 @@ impl Interpreter {
         foreach_statement: &ForeachStatement,
         io: &mut Io<'_>,
     ) -> RuntimeResult {
-        let variable = self.store.get(foreach_statement.list_name.as_str()).clone();
+        let variable = self.store.get(&foreach_statement.list_name.value).clone();
 
         match variable.type_ {
             PolderType::Array(_) => {
@@ -393,7 +393,7 @@ impl Interpreter {
                         for (index, element) in elements.iter().enumerate() {
                             self.store.up_scope();
                             self.store.declare(
-                                &foreach_statement.element_binding,
+                                &foreach_statement.element_binding.value,
                                 Variable {
                                     type_: element.into(),
                                     value: Some(element.clone()),
@@ -402,7 +402,7 @@ impl Interpreter {
 
                             if foreach_statement.index_binding.is_some() {
                                 self.store.declare(
-                                    foreach_statement.index_binding.as_ref().unwrap(),
+                                    &foreach_statement.index_binding.as_ref().unwrap().value,
                                     Variable {
                                         type_: PolderType::Integer,
                                         value: Some(Literal::Integer(index as i64)),

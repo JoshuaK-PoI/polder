@@ -78,6 +78,10 @@ impl Parser {
     }
 
     fn array_decl(&mut self) -> CompilerResult<Expression> {
+        // @TODO:
+        // Think about this; allowing arraydecls anywhere is probably not a good idea.
+        // We now have to alter the 'if' statement for instance, because this eats the comma at the end of
+        // the if-predicate expression which causes unexpected errors.
         let elem = self.comparison()?;
         if self.next_is_any_of(&[TokenType::Comma, TokenType::KWEn]) {
             let mut elem_vec = vec![elem];
@@ -116,7 +120,7 @@ impl Parser {
         }
     }
 
-    fn comparison(&mut self) -> CompilerResult<Expression> {
+    pub(crate) fn comparison(&mut self) -> CompilerResult<Expression> {
         let lhs = self.binary()?;
         let negate = self.next_is_then_unshift(TokenType::KWNiet);
 

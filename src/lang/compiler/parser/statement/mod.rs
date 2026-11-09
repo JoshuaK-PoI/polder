@@ -1,3 +1,4 @@
+use log::debug;
 use serde::Serialize;
 
 use crate::{
@@ -64,9 +65,9 @@ pub(crate) struct WhileStatement {
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub(crate) struct ForeachStatement {
-    pub(crate) list_name: String,
-    pub(crate) element_binding: String,
-    pub(crate) index_binding: Option<String>,
+    pub(crate) list_name: Token,
+    pub(crate) element_binding: Token,
+    pub(crate) index_binding: Option<Token>,
     pub(crate) statements: Vec<Statement>,
     pub(crate) span: Span,
 }
@@ -109,7 +110,6 @@ impl Parser {
                 format!("Verwachtte hier het begin van een zin, maar vond het einde van het bestand.")
             );
         }
-
         let stmt = match self.peek().unwrap().type_ {
             TokenType::KWDruk => self.intrinsic(Intrinsics::Print),
             TokenType::KWSchrijf => self.intrinsic(Intrinsics::Write),
@@ -375,13 +375,12 @@ impl Parser {
                 format!("Hier kan niet nogmaals een 'Als' voorkomen")
             );
         }
-
         let start = self.expect(TokenType::KWAls)?.clone();
 
         // @TODO: For now, we only support equality/gt/lt expressions
         // When we support AND / OR, we may get more than 1 expression - in that case we will
         // need to loop until we hit the comma / colon.
-        let mut check_expression = self.expression()?;
+        let mut check_expression = self.comparison()?;
 
         if self.next_is_any_of(LITERALS) {
             check_expression = self.create_shorthand_if_statement(check_expression)?;
@@ -462,6 +461,9 @@ impl Parser {
                 self.expect(TokenType::KWIs)?;
                 self.expect(TokenType::KWKees)?;
             } else if self.next_is_then_unshift(TokenType::KWAnders) {
+                // Record position for the compiler error of multiple Anders
+                let first_else_occurrence = self.get_nth(0).to_owned();
+
                 if self.next_is_then_unshift(TokenType::Comma) {
                     else_statements.push(self.r#if()?);
                 } else {
@@ -475,7 +477,8 @@ impl Parser {
                         if self.next_is(TokenType::KWAnders) {
                             return compiler_error!(
                                 InvalidStatement @ self.next().span =>
-                                format!("Dit als-blok heeft al een 'Anders'.")
+                                format!("Dit als-blok heeft al een 'Anders'.");
+                                @ first_else_occurrence.span => format!("Hier is de 'Anders' gedefinieerd.")
                             );
                         }
                     }
@@ -532,7 +535,7 @@ impl Parser {
 
         let start = self.expect(TokenType::KWZolang)?;
 
-        let predicate = self.expression()?;
+        let predicate = self.comparison()?;
 
         self.expect(TokenType::Colon)?;
 
@@ -568,17 +571,16 @@ impl Parser {
         let start = self.expect(TokenType::KWVoor)?.span.0;
         self.expect(TokenType::KWElke)?;
 
-        let element_binding = self.expect(TokenType::Identifier)?.value;
+        let element_binding = self.expect(TokenType::Identifier)?;
         let index_binding = if self.next_is_then_unshift(TokenType::KWEn) {
-            Some(self.expect(TokenType::Identifier)?.value)
+            Some(self.expect(TokenType::Identifier)?)
         } else {
             None
         };
 
         self.expect(TokenType::KWIn)?;
-        let list = self.expect(TokenType::Identifier)?;
-        let list_name = list.value;
-        let end = list.span.1;
+        let list_name = self.expect(TokenType::Identifier)?;
+        let end = list_name.span.1;
 
         self.expect(TokenType::Colon)?;
 
